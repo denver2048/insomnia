@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pending-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pending-demo
+  template:
+    metadata:
+      labels:
+        app: pending-demo
+    spec:
+      containers:
+      - name: stress
+        image: nginx
+        resources:
+          requests:
+            cpu: "8"
+            memory: "8Gi"

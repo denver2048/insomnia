@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oom-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oom-demo
+  template:
+    metadata:
+      labels:
+        app: oom-demo
+    spec:
+      containers:
+      - name: memory-hog
+        image: python:3.11-slim
+        command:
+        - python
+        - -c
+        - |
+          a = []
+          while True:
+              a.append("A" * 10**6)
+        resources:
+          limits:
+            memory: "64Mi"
+          requests:
+            memory: "32Mi"
