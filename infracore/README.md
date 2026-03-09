@@ -142,8 +142,13 @@ Install MCP server:
 ```bash
 helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server oci://ghcr.io/containers/charts/kubernetes-mcp-server --set ingress.host=localhost
 ```
+# 5. Apply alermanager configuration
 
-# 5. Apply alertmanager rules
+```bash
+kubectl apply -f alertmanager-config.yaml
+```
+
+# 6. Apply alertmanager rules
 
 Create manifest with rules for alertmanager
 
@@ -177,7 +182,7 @@ Apply these rules in cluster:
 kubectl apply -f alert-rules.yaml
 ```
 
-# 6. Apply RBAC policies
+# 7. Apply RBAC policies
 
 To ensure the operation of the MCP server, it is necessary to grant it rights via RBAC (in our case, read-only):
 

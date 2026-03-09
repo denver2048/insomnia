@@ -46,7 +46,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: kubernetes-mcp-server
-    namespace: mcp
+    namespace: kubernetes-mcp-server
 roleRef:
   kind: ClusterRole
   name: mcp-readonly
