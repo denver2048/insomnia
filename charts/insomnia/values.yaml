@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: insomnia
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8000
+
+logProvider: kubernetes
+
+loki:
+  url: http://loki.monitoring.svc:3100
+
+prometheus:
+  url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090

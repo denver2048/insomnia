@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # INSOMNIA – Local Infrastructure Auto-Provisioning
-# Based on README.md: deploys Kind cluster, kube-prometheus-stack, MCP server, and configs.
+# Deploys Kind cluster, kube-prometheus-stack, MCP server, Insomnia app, and configs.
 
 set -euo pipefail
 
@@ -133,13 +133,61 @@ apply_alert_rules() {
   fi
 }
 
-# --- 7. Apply RBAC ---
+# --- 7. Apply Insomnia namespace and app resources ---
+apply_namespace() {
+  if [[ -f namespace.yaml ]]; then
+    log_info "Applying namespace.yaml..."
+    kubectl apply -f namespace.yaml
+  else
+    log_warn "namespace.yaml not found. Skipping."
+  fi
+}
+
+apply_sa() {
+  if [[ -f sa.yaml ]]; then
+    log_info "Applying sa.yaml..."
+    kubectl apply -f sa.yaml
+  else
+    log_warn "sa.yaml not found. Skipping."
+  fi
+}
+
 apply_rbac() {
   if [[ -f rbac.yaml ]]; then
     log_info "Applying rbac.yaml..."
     kubectl apply -f rbac.yaml
   else
     log_warn "rbac.yaml not found. Skipping."
+  fi
+}
+
+load_insomnia_image() {
+  local cluster_name
+  cluster_name=$(grep -E '^name:' kind-cluster-config.yaml 2>/dev/null | head -1 | awk '{print $2}')
+  [[ -z "$cluster_name" ]] && cluster_name="insomnia-cluster"
+  if docker image inspect insomnia:latest &>/dev/null; then
+    log_info "Loading insomnia:latest into Kind cluster..."
+    kind load docker-image insomnia:latest --name "$cluster_name"
+  else
+    log_warn "Image insomnia:latest not found. Build it from repo root: docker build -t insomnia:latest ."
+  fi
+}
+
+apply_deployment() {
+  if [[ -f deployment.yaml ]]; then
+    log_info "Applying deployment.yaml..."
+    kubectl apply -f deployment.yaml
+  else
+    log_warn "deployment.yaml not found. Skipping."
+  fi
+}
+
+apply_service() {
+  if [[ -f service.yaml ]]; then
+    log_info "Applying service.yaml..."
+    kubectl apply -f service.yaml
+  else
+    log_warn "service.yaml not found. Skipping."
   fi
 }
 
@@ -155,7 +203,12 @@ main() {
   run_step "Install Kubernetes MCP Server" install_mcp_server
   run_step "Apply Alertmanager config" apply_alertmanager_config
   run_step "Apply alert rules" apply_alert_rules
+  run_step "Apply Insomnia namespace" apply_namespace
+  run_step "Apply Insomnia ServiceAccount" apply_sa
   run_step "Apply RBAC" apply_rbac
+  run_step "Load Insomnia image into Kind" load_insomnia_image
+  run_step "Apply Insomnia deployment" apply_deployment
+  run_step "Apply Insomnia service" apply_service
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))

@@ -8,8 +8,8 @@ rules:
   - pods
   - pods/log
   - events
-  - namespaces
   - nodes
+  - namespaces
   verbs:
   - get
   - list
@@ -20,21 +20,19 @@ rules:
   - deployments
   - replicasets
   - statefulsets
-  - daemonsets
   verbs:
   - get
   - list
   - watch
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: insomnia-readonly-binding
+  name: insomnia-readonly
 subjects:
 - kind: ServiceAccount
   name: insomnia
-  namespace: insomnia
+  namespace: {{ .Release.Namespace }}
 roleRef:
   kind: ClusterRole
   name: insomnia-readonly

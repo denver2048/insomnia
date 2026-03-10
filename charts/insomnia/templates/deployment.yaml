@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insomnia
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: insomnia
+  template:
+    metadata:
+      labels:
+        app: insomnia
+    spec:
+      serviceAccountName: insomnia
+      containers:
+      - name: insomnia
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+        ports:
+        - containerPort: 8000
+
+        env:
+        - name: LOG_PROVIDER
+          value: {{ .Values.logProvider }}
+
+        - name: LOKI_URL
+          value: {{ .Values.loki.url }}
+
+        - name: PROMETHEUS_URL
+          value: {{ .Values.prometheus.url }}
+
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5

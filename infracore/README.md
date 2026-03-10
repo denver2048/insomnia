@@ -1,15 +1,22 @@
 # INSOMNIA – Local Infrastructure Setup
 
-This guide explains how to deploy a local infrastructure environment for developing and testing the **INSOMNIA**.
+This guide explains how to deploy a local infrastructure environment for developing and testing **INSOMNIA**.
 
 The stack includes:
 
-- **Kubernetes cluster (Kind)**
-  - 1 control-plane node
-  - 3 worker nodes
-- **kube-prometheus-stack** for metrics and monitoring
-- **Alertmanager rules** for demo
-- **Kubernetes MCP Server** to expose Kubernetes operations as MCP tools for AI agents
+- **Kubernetes cluster (Kind)** — 1 control-plane node, 3 worker nodes
+- **kube-prometheus-stack** — metrics and monitoring (Prometheus, Alertmanager, Grafana)
+- **Alertmanager config and alert rules** — for demo alerts
+- **Kubernetes MCP Server** — exposes Kubernetes operations as MCP tools for AI agents
+- **Insomnia app** — deployed in the `insomnia` namespace (namespace, ServiceAccount, Deployment, Service)
+
+To provision everything in one go, run from this directory:
+
+```bash
+./provision.sh
+```
+
+The sections below describe each step manually.
 
 This environment allows an AI agent to investigate incidents using:
 
@@ -73,7 +80,7 @@ Create the cluster configuration file **kind-cluster-config.yaml**:
 ```yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: sre-agent-lab
+name: insomnia-cluster
 
 nodes:
 - role: control-plane
@@ -142,17 +149,17 @@ Install MCP server:
 ```bash
 helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server oci://ghcr.io/containers/charts/kubernetes-mcp-server --set ingress.host=localhost
 ```
-# 5. Apply alermanager configuration
+# 5. Apply Alertmanager configuration
 
 ```bash
 kubectl apply -f alertmanager-config.yaml
 ```
 
-# 6. Apply alertmanager rules
+# 6. Apply alert rules
 
-Create manifest with rules for alertmanager
+Create a manifest with PrometheusRule resources for alerts.
 
-Examlpe of manifest:
+Example of manifest:
 ```bash
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -182,10 +189,38 @@ Apply these rules in cluster:
 kubectl apply -f alert-rules.yaml
 ```
 
-# 7. Apply RBAC policies
+# 7. Apply Insomnia namespace and app resources
 
-To ensure the operation of the MCP server, it is necessary to grant it rights via RBAC (in our case, read-only):
+Create the `insomnia` namespace and ServiceAccount:
+
+```bash
+kubectl apply -f namespace.yaml
+kubectl apply -f sa.yaml
+```
+
+# 8. Apply RBAC policies
+
+RBAC grants the Insomnia ServiceAccount read-only access to pods, events, deployments, etc. (used by the MCP server and app):
 
 ```bash
 kubectl apply -f rbac.yaml
 ```
+
+# 9. Deploy the Insomnia app
+
+Build the image from the repository root and load it into Kind (so the cluster can use `insomnia:latest`):
+
+```bash
+# From repo root (parent of infracore/)
+docker build -t insomnia:latest .
+kind load docker-image insomnia:latest --name insomnia-cluster
+```
+
+Apply the deployment and service:
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+```
+
+The Insomnia app runs in the `insomnia` namespace with the configured ServiceAccount, and connects to Prometheus and Loki in the `monitoring` namespace.

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insomnia
+  namespace: insomnia
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: insomnia
+  template:
+    metadata:
+      labels:
+        app: insomnia
+    spec:
+      serviceAccountName: insomnia
+      containers:
+      - name: insomnia
+        image: insomnia:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: LOG_PROVIDER
+          value: loki
+        - name: LOKI_URL
+          value: http://loki.monitoring.svc:3100
+        - name: PROMETHEUS_URL
+          value: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
