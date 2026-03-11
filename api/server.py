@@ -21,12 +21,11 @@ async def alert(request: Request):
 
     payload = await request.json()
 
-    alerts = payload.get("alerts", [])
-
-    for alert in alerts:
-
-        result = await investigate(alert)
-
-        print(result["report"])
+    alert = payload.get("alert", [])
+    
+    if alert:
+        await investigate(alert)
+    else:
+        return {"status": "no alert"}
 
     return {"status": "received"}
