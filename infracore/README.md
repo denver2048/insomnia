@@ -1,23 +1,35 @@
-# INSOMNIA – Local Infrastructure Setup
+# INSOMNIA – Infracore (Local Infrastructure Only)
 
-This guide explains how to deploy a local infrastructure environment for developing and testing the **INSOMNIA**.
+This directory contains the **infracore** setup for developing and testing **INSOMNIA**: Kind cluster, monitoring stack, and alert configuration. It does **not** deploy the Insomnia app.
 
-The stack includes:
+## What infracore provisions
 
-- **Kubernetes cluster (Kind)**
-  - 1 control-plane node
-  - 3 worker nodes
-- **kube-prometheus-stack** for metrics and monitoring
-- **Alertmanager rules** for demo
-- **Kubernetes MCP Server** to expose Kubernetes operations as MCP tools for AI agents
+- **Kubernetes cluster (Kind)** — 1 control-plane node, 3 worker nodes
+- **kube-prometheus-stack** — metrics and monitoring (Prometheus, Alertmanager, Grafana)
+- **Alertmanager config** — webhook to Insomnia app (when deployed)
+- **Prometheus alert rules** — demo alerts (ImagePullBackOff, PodPending, OOMKilled)
 
-This environment allows an AI agent to investigate incidents using:
+## Full stack (infracore + Insomnia via Helm)
 
-- Kubernetes API
-- Pod logs and events
-- Prometheus metrics
+To provision **everything** (infracore + Insomnia app) in one go, run from the **repository root**:
 
-# Architecture
+```bash
+./provision.sh
+```
+
+That script runs infracore first, then builds the Insomnia image, loads it into Kind, and installs the Insomnia app via Helm.
+
+## Infracore only
+
+To provision **only** the infrastructure (no Insomnia app), run from this directory:
+
+```bash
+./provision.sh
+```
+
+Then deploy Insomnia separately (e.g. from repo root with `./provision.sh`, or manually with Helm as described in the root README).
+
+## Architecture
 
 ```
             +----------------------+
@@ -42,22 +54,22 @@ This environment allows an AI agent to investigate incidents using:
                +----------------+
 ```
 
-# 1. Prerequisites
+## 1. Prerequisites
 
-Install the following tools:
+Install:
 
 - docker
 - kind
 - kubectl
 - helm
 
-Example installation on macOS:
+Example on macOS:
 
 ```bash
 brew install kind kubectl helm
 ```
 
-To check if all components are installed, run the commands:
+Check versions:
 
 ```bash
 docker --version
@@ -66,14 +78,14 @@ kubectl version --client
 helm version
 ```
 
-# 2. Create a Kind Cluster (1 control-plane + 3 workers)
+## 2. Create a Kind cluster (1 control-plane + 3 workers)
 
-Create the cluster configuration file **kind-cluster-config.yaml**:
+Create **kind-cluster-config.yaml** (or use the one in this directory):
 
 ```yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: sre-agent-lab
+name: insomnia-cluster
 
 nodes:
 - role: control-plane
@@ -86,106 +98,61 @@ networking:
   disableDefaultCNI: false
 ```
 
-Create cluster:
+Create the cluster:
 
 ```bash
 kind create cluster --config kind-cluster-config.yaml
 ```
 
-Verify nodes:
+Verify:
 
 ```bash
 kubectl get nodes
 ```
 
-# 3. Install kube-prometheus-stack
-
-Add the Helm repository:
+## 3. Install kube-prometheus-stack
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo update
-```
-
-Create the monitoring namespace:
-
-```bash
 kubectl create namespace monitoring
-```
-
-Install the stack:
-
-```bash
 helm install kube-prometheus-stack \
   prometheus-community/kube-prometheus-stack \
   -n monitoring
 ```
 
-Verify deployment:
+Verify:
 
 ```bash
 kubectl get pods -n monitoring
 ```
 
-The following components should be running:
+You should see Prometheus, Alertmanager, Grafana, kube-state-metrics, and node-exporter.
 
-- Prometheus
-- Alertmanager
-- Grafana
-- kube-state-metrics
-- node-exporter
-
-# 4. Install Kubernetes MCP Server
-
-Install MCP server:
+## 4. (Optional) Install Kubernetes MCP Server
 
 ```bash
-helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server oci://ghcr.io/containers/charts/kubernetes-mcp-server --set ingress.host=localhost
+helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server \
+  oci://ghcr.io/containers/charts/kubernetes-mcp-server \
+  --set ingress.host=localhost
 ```
-# 5. Apply alermanager configuration
+
+## 5. Apply Alertmanager configuration
 
 ```bash
 kubectl apply -f alertmanager-config.yaml
 ```
 
-# 6. Apply alertmanager rules
+This configures Alertmanager to send alerts with `insomnia: "true"` to the Insomnia webhook (e.g. `http://insomnia.insomnia.svc:8000/alert` once the app is deployed).
 
-Create manifest with rules for alertmanager
-
-Examlpe of manifest:
-```bash
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
-metadata:
-  name: insomnia-imagepull-alert
-  namespace: monitoring
-  labels:
-    release: kube-prometheus-stack
-spec:
-  groups:
-  - name: insomnia.rules
-    rules:
-    - alert: KubernetesImagePullBackOff
-      expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
-      for: 10s
-      labels:
-        severity: warning
-        insomnia: "true"
-      annotations:
-        summary: "Pod {{$labels.pod}} cannot pull image"
-        description: "Container {{$labels.container}} in {{$labels.namespace}}/{{$labels.pod}} is in ImagePullBackOff"
-```
-
-Apply these rules in cluster:
+## 6. Apply alert rules
 
 ```bash
 kubectl apply -f alert-rules.yaml
 ```
 
-# 7. Apply RBAC policies
+The rules (see `alert-rules.yaml`) define PrometheusRule resources for ImagePullBackOff, PodPending, and OOMKilled with the `insomnia: "true"` label so they are routed to Insomnia.
 
-To ensure the operation of the MCP server, it is necessary to grant it rights via RBAC (in our case, read-only):
+---
 
-```bash
-kubectl apply -f rbac.yaml
-```
+**Deploying the Insomnia app** (namespace, ServiceAccount, RBAC, Deployment, Service) is done from the **repository root** via the root `provision.sh`, which uses the Helm chart under `charts/insomnia`. See the root [README](../README.md) for full-stack and app details.

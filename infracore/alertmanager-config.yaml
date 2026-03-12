@@ -16,5 +16,4 @@ spec:
   receivers:
     - name: insomnia
       webhookConfigs:
-        - url: http://host.docker.internal:8080/alert
-          sendResolved: true
+        - url: http://insomnia.insomnia.svc:8000/alert

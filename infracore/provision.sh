@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# INSOMNIA – Local Infrastructure Auto-Provisioning
-# Based on README.md: deploys Kind cluster, kube-prometheus-stack, MCP server, and configs.
+# INSOMNIA infracore – Local infrastructure only (Kind, kube-prometheus-stack, alert rules).
+# Does not deploy the Insomnia app; use the root provision.sh for full stack (infracore + Helm).
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -100,20 +100,7 @@ install_prometheus_stack() {
   kubectl get pods -n monitoring
 }
 
-# --- 4. Install Kubernetes MCP Server ---
-install_mcp_server() {
-  if helm status kubernetes-mcp-server -n kubernetes-mcp-server &>/dev/null; then
-    log_warn "kubernetes-mcp-server already installed. Skipping."
-    return 0
-  fi
-
-  log_info "Installing Kubernetes MCP Server..."
-  helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server \
-    oci://ghcr.io/containers/charts/kubernetes-mcp-server \
-    --set ingress.host=localhost
-}
-
-# --- 5. Apply Alertmanager config ---
+# --- 4. Apply Alertmanager config ---
 apply_alertmanager_config() {
   if [[ -f alertmanager-config.yaml ]]; then
     log_info "Applying alertmanager-config.yaml..."
@@ -123,7 +110,7 @@ apply_alertmanager_config() {
   fi
 }
 
-# --- 6. Apply Alertmanager / Prometheus rules ---
+# --- 5. Apply Prometheus alert rules ---
 apply_alert_rules() {
   if [[ -f alert-rules.yaml ]]; then
     log_info "Applying alert-rules.yaml..."
@@ -133,33 +120,22 @@ apply_alert_rules() {
   fi
 }
 
-# --- 7. Apply RBAC ---
-apply_rbac() {
-  if [[ -f rbac.yaml ]]; then
-    log_info "Applying rbac.yaml..."
-    kubectl apply -f rbac.yaml
-  else
-    log_warn "rbac.yaml not found. Skipping."
-  fi
-}
-
 # --- Main ---
 main() {
   local total_start total_end total_elapsed
   total_start=$(date +%s)
-  log_info "Starting INSOMNIA local infrastructure provisioning..."
+  log_info "Starting INSOMNIA infracore provisioning (Kind + Prometheus stack + alert rules)..."
 
   run_step "Prerequisites" check_prereqs
   run_step "Create Kind cluster" create_cluster
   run_step "Install kube-prometheus-stack" install_prometheus_stack
-  run_step "Install Kubernetes MCP Server" install_mcp_server
   run_step "Apply Alertmanager config" apply_alertmanager_config
   run_step "Apply alert rules" apply_alert_rules
-  run_step "Apply RBAC" apply_rbac
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))
-  log_info "Provisioning complete. Total time: $(format_elapsed $total_elapsed)"
+  log_info "Infracore provisioning complete. Total time: $(format_elapsed $total_elapsed)"
+  log_info "To deploy the Insomnia app, run from repo root: ./provision.sh"
 }
 
 main "$@"

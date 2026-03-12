@@ -16,11 +16,15 @@ The pipeline is implemented as a **LangGraph** state graph: investigators run in
 
 ```
 insomnia/
+├── provision.sh              # Full stack: infracore + Helm install of Insomnia
 ├── insomnia/                 # Main application
 │   ├── main.py               # Entrypoint: startup + uvicorn (FastAPI on :8080)
 │   ├── api.py                # FastAPI app; POST /alert webhook handler
-│   ├── agent.py              # LangGraph pipeline: k8s → logs → aggregate → root_cause
-│   ├── llm.py                # OpenAI client + system/user prompts for SRE-style analysis
+│   ├── agent/                 # LangGraph pipeline, analysis, LLM
+│   │   ├── llm.py            # OpenAI client + system/user prompts for SRE-style analysis
+│   │   ├── graph.py
+│   │   ├── commander.py
+│   │   └── analysis.py
 │   ├── mcp_client.py         # MCP SSE client; list_tools, call(tool_name, args)
 │   ├── ecr.py                # ECR image detection + registry extraction
 │   ├── ecr_auth.py           # imagePullSecrets check for ECR auth
@@ -31,14 +35,20 @@ insomnia/
 │   ├── requirements.txt
 │   ├── .env.example
 │   └── .gitignore
+├── charts/insomnia/          # Helm chart for Insomnia (Deployment, Service, RBAC)
+│   ├── chart.yaml
+│   ├── values.yaml
+│   └── templates/
 ├── demo-cases/               # Example K8s manifests to trigger alerts
 │   ├── OOM.yaml              # OOMKilled (memory limit + memory-hog)
 │   ├── Pending.yaml          # Pending (unschedulable resource requests)
 │   └── ImagePull-tag.yaml    # ImagePullBackOff (missing image tag)
-├── infracore/                # Prometheus/Alertmanager + RBAC for Insomnia
+├── infracore/                # Kind cluster, Prometheus stack, alert rules
+│   ├── provision.sh          # Infracore only (no Insomnia app)
+│   ├── kind-cluster-config.yaml
 │   ├── alert-rules.yaml      # PrometheusRule: ImagePullBackOff, PodPending, OOMKilled
-│   ├── alertmanager-insomnia.yaml  # AlertmanagerConfig → webhook to Insomnia
-│   └── rbac.yaml             # ClusterRole/Binding for MCP server (read-only)
+│   ├── alertmanager-config.yaml  # AlertmanagerConfig → webhook to Insomnia
+│   └── README.md
 └── README.md                 # This file
 ```
 
@@ -51,7 +61,7 @@ insomnia/
    - **log_investigator** — MCP `pods_log` → `state["logs"]`
    - **aggregate** — Builds a single evidence string (scope, k8s_data, logs).
    - **analysis** — If the evidence mentions an image, optionally enriches with ECR auth check, Docker Hub tags, or “other registry”; then calls `llm.analyze(evidence)` and sets `state["report"]`.
-4. **LLM** (`llm.py`) uses a fixed system prompt (senior Kubernetes SRE, structured output: Root Cause, Confidence, Evidence, Suggested Fix) and returns the analysis text. The API logs the report and responds `{"status": "processed"}`.
+4. **LLM** (`agent/llm.py`) uses a fixed system prompt (senior Kubernetes SRE, structured output: Root Cause, Confidence, Evidence, Suggested Fix) and returns the analysis text. The API logs the report and responds `{"status": "processed"}`.
 
 ## Configuration
 
@@ -59,7 +69,43 @@ insomnia/
   - `OPENAI_API_KEY` — OpenAI API key for the analysis model.
   - `OPENAI_MODEL` — Model name (default `gpt-5.2`).
 - **MCP server** — The app expects an MCP server at `http://localhost:8081/sse` (see `mcp_client.py`) exposing tools such as `pods_get`, `events_list`, `pods_log`. The **infracore** RBAC is intended for a Kubernetes MCP server that reads pods, events, and logs.
-- **Alertmanager** — Use `infracore/alertmanager-insomnia.yaml` so alerts with `insomnia: "true"` are sent to the Insomnia webhook (e.g. `http://host.docker.internal:8080/alert` when running locally).
+- **Alertmanager** — Use `infracore/alertmanager-config.yaml` so alerts with `insomnia: "true"` are sent to the Insomnia webhook (e.g. `http://insomnia.insomnia.svc:8000/alert` in-cluster or `http://host.docker.internal:8080/alert` when running locally).
+
+## Provisioning (full stack)
+
+From the **repository root**, provision the full local stack (Kind cluster, kube-prometheus-stack, alert rules, then Insomnia app via Helm):
+
+```bash
+./provision.sh
+```
+
+This script:
+
+1. Runs **infracore** (`infracore/provision.sh`): Kind cluster, kube-prometheus-stack, Alertmanager config, Prometheus alert rules.
+2. Builds the Insomnia Docker image (`insomnia:latest`) and loads it into the Kind cluster.
+3. Installs the Insomnia app with **Helm** from `charts/insomnia` into the `insomnia` namespace (Deployment, Service, ServiceAccount, RBAC).
+
+Prerequisites: `docker`, `kind`, `kubectl`, `helm` (e.g. `brew install kind kubectl helm`). See `infracore/README.md` for manual infracore steps.
+
+### OpenAI API key (optional)
+
+To enable LLM root-cause analysis, create a secret with your OpenAI API key in the `insomnia` namespace:
+
+```bash
+# From repo root
+OPENAI_API_KEY=sk-your-key ./scripts/create-openai-secret.sh
+# Optional: set model
+OPENAI_API_KEY=sk-your-key OPENAI_MODEL=gpt-4o ./scripts/create-openai-secret.sh
+```
+
+Or manually:
+
+```bash
+kubectl create secret generic insomnia-openai --from-literal=OPENAI_API_KEY=sk-your-key -n insomnia
+kubectl rollout restart deployment/insomnia -n insomnia
+```
+
+The Helm chart injects the secret `insomnia-openai` into the deployment via `envFrom` (optional); without it, the app runs with stub analysis.
 
 ## Running
 
