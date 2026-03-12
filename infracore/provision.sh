@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# INSOMNIA – Local Infrastructure Auto-Provisioning
-# Deploys Kind cluster, kube-prometheus-stack, MCP server, Insomnia app, and configs.
+# INSOMNIA infracore – Local infrastructure only (Kind, kube-prometheus-stack, alert rules).
+# Does not deploy the Insomnia app; use the root provision.sh for full stack (infracore + Helm).
 
-set -euo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -100,20 +100,7 @@ install_prometheus_stack() {
   kubectl get pods -n monitoring
 }
 
-# --- 4. Install Kubernetes MCP Server ---
-install_mcp_server() {
-  if helm status kubernetes-mcp-server -n kubernetes-mcp-server &>/dev/null; then
-    log_warn "kubernetes-mcp-server already installed. Skipping."
-    return 0
-  fi
-
-  log_info "Installing Kubernetes MCP Server..."
-  helm upgrade -i -n kubernetes-mcp-server --create-namespace kubernetes-mcp-server \
-    oci://ghcr.io/containers/charts/kubernetes-mcp-server \
-    --set ingress.host=localhost
-}
-
-# --- 5. Apply Alertmanager config ---
+# --- 4. Apply Alertmanager config ---
 apply_alertmanager_config() {
   if [[ -f alertmanager-config.yaml ]]; then
     log_info "Applying alertmanager-config.yaml..."
@@ -123,7 +110,7 @@ apply_alertmanager_config() {
   fi
 }
 
-# --- 6. Apply Alertmanager / Prometheus rules ---
+# --- 5. Apply Prometheus alert rules ---
 apply_alert_rules() {
   if [[ -f alert-rules.yaml ]]; then
     log_info "Applying alert-rules.yaml..."
@@ -133,86 +120,22 @@ apply_alert_rules() {
   fi
 }
 
-# --- 7. Apply Insomnia namespace and app resources ---
-apply_namespace() {
-  if [[ -f namespace.yaml ]]; then
-    log_info "Applying namespace.yaml..."
-    kubectl apply -f namespace.yaml
-  else
-    log_warn "namespace.yaml not found. Skipping."
-  fi
-}
-
-apply_sa() {
-  if [[ -f sa.yaml ]]; then
-    log_info "Applying sa.yaml..."
-    kubectl apply -f sa.yaml
-  else
-    log_warn "sa.yaml not found. Skipping."
-  fi
-}
-
-apply_rbac() {
-  if [[ -f rbac.yaml ]]; then
-    log_info "Applying rbac.yaml..."
-    kubectl apply -f rbac.yaml
-  else
-    log_warn "rbac.yaml not found. Skipping."
-  fi
-}
-
-load_insomnia_image() {
-  local cluster_name
-  cluster_name=$(grep -E '^name:' kind-cluster-config.yaml 2>/dev/null | head -1 | awk '{print $2}')
-  [[ -z "$cluster_name" ]] && cluster_name="insomnia-cluster"
-  if docker image inspect insomnia:latest &>/dev/null; then
-    log_info "Loading insomnia:latest into Kind cluster..."
-    kind load docker-image insomnia:latest --name "$cluster_name"
-  else
-    log_warn "Image insomnia:latest not found. Build it from repo root: docker build -t insomnia:latest ."
-  fi
-}
-
-apply_deployment() {
-  if [[ -f deployment.yaml ]]; then
-    log_info "Applying deployment.yaml..."
-    kubectl apply -f deployment.yaml
-  else
-    log_warn "deployment.yaml not found. Skipping."
-  fi
-}
-
-apply_service() {
-  if [[ -f service.yaml ]]; then
-    log_info "Applying service.yaml..."
-    kubectl apply -f service.yaml
-  else
-    log_warn "service.yaml not found. Skipping."
-  fi
-}
-
 # --- Main ---
 main() {
   local total_start total_end total_elapsed
   total_start=$(date +%s)
-  log_info "Starting INSOMNIA local infrastructure provisioning..."
+  log_info "Starting INSOMNIA infracore provisioning (Kind + Prometheus stack + alert rules)..."
 
   run_step "Prerequisites" check_prereqs
   run_step "Create Kind cluster" create_cluster
   run_step "Install kube-prometheus-stack" install_prometheus_stack
-  run_step "Install Kubernetes MCP Server" install_mcp_server
   run_step "Apply Alertmanager config" apply_alertmanager_config
   run_step "Apply alert rules" apply_alert_rules
-  run_step "Apply Insomnia namespace" apply_namespace
-  run_step "Apply Insomnia ServiceAccount" apply_sa
-  run_step "Apply RBAC" apply_rbac
-  run_step "Load Insomnia image into Kind" load_insomnia_image
-  run_step "Apply Insomnia deployment" apply_deployment
-  run_step "Apply Insomnia service" apply_service
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))
-  log_info "Provisioning complete. Total time: $(format_elapsed $total_elapsed)"
+  log_info "Infracore provisioning complete. Total time: $(format_elapsed $total_elapsed)"
+  log_info "To deploy the Insomnia app, run from repo root: ./provision.sh"
 }
 
 main "$@"

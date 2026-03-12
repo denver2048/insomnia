@@ -17,4 +17,3 @@ spec:
     - name: insomnia
       webhookConfigs:
         - url: http://insomnia.insomnia.svc:8000/alert
-          send_resolved: true

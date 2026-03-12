@@ -1,10 +1,15 @@
+import logging
+
 from tools.log_client import get_logs
+
+logger = logging.getLogger(__name__)
 
 
 async def log_investigator(state):
 
     namespace = state["namespace"]
     pod = state["pod"]
+    logger.info("Step: logs investigator → fetching logs for %s/%s", namespace, pod)
 
     logs = get_logs(namespace, pod)
 

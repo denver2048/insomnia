@@ -1,10 +1,15 @@
+import logging
+
 from tools.k8s_client import get_pod, get_pod_events
+
+logger = logging.getLogger(__name__)
 
 
 async def kubernetes_investigator(state):
 
     namespace = state["namespace"]
     pod_name = state["pod"]
+    logger.info("Step: kubernetes investigator → fetching pod %s/%s", namespace, pod_name)
 
     pod = get_pod(namespace, pod_name)
 

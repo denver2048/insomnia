@@ -1,10 +1,14 @@
 import json
+import logging
 
-from llm import analyze
+from agent.llm import analyze
+
+logger = logging.getLogger(__name__)
 
 
 async def root_cause(state):
 
+    logger.info("Step: root cause analysis → calling LLM")
     evidence = {
         "kubernetes": state.get("kubernetes"),
         "logs": state.get("logs"),
@@ -27,7 +31,7 @@ Provide:
 """
 
     report = analyze(prompt)
-
     state["report"] = report
-
+    logger.info("Step: root cause analysis → report ready (length=%d)", len(report))
+    logger.info("LLM answer:\n%s", report)
     return state

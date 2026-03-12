@@ -15,3 +15,12 @@ loki:
 
 prometheus:
   url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+
+# OpenAI: inject OPENAI_API_KEY (and optional OPENAI_MODEL) from a Secret
+openai:
+  # Name of existing secret with key OPENAI_API_KEY (optional key OPENAI_MODEL)
+  existingSecret: insomnia-openai
+  # Optional: create secret from values (avoid in prod; use existingSecret instead)
+  createSecret: false
+  apiKey: ""
+  model: "gpt-4o-mini"
