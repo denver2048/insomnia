@@ -5,6 +5,7 @@ import sys
 from fastapi import FastAPI, Request
 
 from agent.commander import investigate
+from eventhub.hub import process_webhook
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
@@ -36,21 +37,35 @@ async def readyz():
     return {"status": "ready"}
 
 
+@app.post("/alert/raw")
+async def alert_raw(request: Request):
+    """Receive Alertmanager webhook and return the raw payload (no event hub, no guardrails)."""
+    payload = await request.json()
+    return payload
+
+
 @app.post("/alert")
 async def alert(request: Request):
-
     payload = await request.json()
-    # Alertmanager sends "alerts" (list); support "alert" (single) or "alerts"
-    raw = payload.get("alerts") or payload.get("alert")
-    alert = (raw[0] if isinstance(raw, list) and raw else raw) if raw else None
+    # Event hub: normalize webhook payload, run guardrails, then investigate only approved alerts
+    rejected, approved = await process_webhook(payload, on_approved=investigate)
 
-    if alert and isinstance(alert, dict):
-        labels = alert.get("labels", {})
-        ns = labels.get("namespace", "?")
-        pod = labels.get("pod", "?")
-        logger.info("Alert received → starting investigation for namespace=%s pod=%s", ns, pod)
-        await investigate(alert)
-        logger.info("Investigation complete for %s/%s", ns, pod)
-        return {"status": "processed"}
-    logger.info("Alert received with no alert payload")
-    return {"status": "no alert"}
+    if not approved and not rejected:
+        logger.info("Alert webhook received with no alert payload")
+        return {"status": "no alert"}
+
+    if rejected and not approved:
+        return {
+            "status": "rejected",
+            "reason": "guardrails",
+            "rejected": [{"namespace": r.namespace, "pod": r.pod, "reason": r.reason} for r in rejected],
+        }
+
+    if rejected:
+        return {
+            "status": "processed",
+            "investigated": len(approved),
+            "rejected": [{"namespace": r.namespace, "pod": r.pod, "reason": r.reason} for r in rejected],
+        }
+
+    return {"status": "processed"}

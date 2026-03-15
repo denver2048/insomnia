@@ -55,7 +55,13 @@ insomnia/
 ## How it works
 
 1. **Alertmanager** fires alerts that match the Infra rules (e.g. `insomnia: "true"`) and POSTs to `http://<insomnia>/alert` with the standard Alertmanager webhook JSON.
-2. **API** (`api.py`) parses the first alert, reads `namespace` and `pod` from labels, and invokes the agent with initial state `{ "alert": { "namespace", "pod" } }`.
+2. **Event hub** receives the webhook, normalizes the payload (supports `alerts` list or single `alert`), then runs **guardrails** before any investigation:
+   - Required labels: `namespace` and `pod` must be present.
+   - Optional allowlist: only listed `alertname` values are accepted (env `INSOMNIA_GUARDRAIL_ALLOWED_ALERTNAMES`).
+   - Optional blocklist: listed `alertname` values are rejected (env `INSOMNIA_GUARDRAIL_BLOCKED_ALERTNAMES`).
+   - Rate limit: same `namespace/pod` is not investigated again within a cooldown window (env `INSOMNIA_GUARDRAIL_COOLDOWN_SECONDS`, default 300).
+3. **API** forwards only approved alerts to the agent; rejected alerts are logged and returned in the webhook response as `rejected` with reasons.
+4. **Agent** runs the graph with initial state `{ "alert": { "namespace", "pod" } }`.
 3. **Agent** (`agent.py`) runs the graph:
    - **k8s_investigator** — MCP `pods_get`, `events_list` → `state["k8s_data"]`
    - **log_investigator** — MCP `pods_log` → `state["logs"]`
@@ -70,6 +76,7 @@ insomnia/
   - `OPENAI_MODEL` — Model name (default `gpt-5.2`).
 - **MCP server** — The app expects an MCP server at `http://localhost:8081/sse` (see `mcp_client.py`) exposing tools such as `pods_get`, `events_list`, `pods_log`. The **infracore** RBAC is intended for a Kubernetes MCP server that reads pods, events, and logs.
 - **Alertmanager** — Use `infracore/alertmanager-config.yaml` so alerts with `insomnia: "true"` are sent to the Insomnia webhook (e.g. `http://insomnia.insomnia.svc:8000/alert` in-cluster or `http://host.docker.internal:8080/alert` when running locally).
+- **Guardrails** (event hub) — Optional env: `INSOMNIA_GUARDRAIL_ALLOWED_ALERTNAMES` (comma-separated alert names to allow; empty = all), `INSOMNIA_GUARDRAIL_BLOCKED_ALERTNAMES` (comma-separated to block), `INSOMNIA_GUARDRAIL_COOLDOWN_SECONDS` (default 300) to avoid re-investigating the same pod within that many seconds.
 
 ## Provisioning (full stack)
 

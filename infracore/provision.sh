@@ -93,7 +93,8 @@ install_prometheus_stack() {
   log_info "Installing kube-prometheus-stack..."
   helm install kube-prometheus-stack \
     prometheus-community/kube-prometheus-stack \
-    -n monitoring
+    -n monitoring \
+    -f kube-prometheus-stack-values.yaml
 
   log_info "Waiting for monitoring pods to be ready..."
   kubectl wait --for=condition=ready pod -l "release=kube-prometheus-stack" -n monitoring --timeout=300s || true

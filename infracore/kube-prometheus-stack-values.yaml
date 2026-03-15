@@ -1,0 +1,6 @@
+# kube-prometheus-stack overrides for Insomnia infracore.
+# Scrape metrics every 10 seconds for faster alerting/dashboards.
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 10s
+    evaluationInterval: 10s
