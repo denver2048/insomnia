@@ -1,0 +1,22 @@
+AI System (AgentGateway + Kagent + LLM backend) has been installed.
+
+Namespaces:
+  - {{ .Values.agentgateway.systemNamespace }}: AgentGateway control plane and proxy
+  - {{ .Values.namespace }}: ai-system chart resources (ConfigMaps, optional Kagent ModelConfig)
+
+Next steps:
+  1. Create the OpenAI API secret in {{ .Values.agentgateway.systemNamespace }} (if not already created):
+     kubectl create secret generic {{ .Values.llm.secretName }} -n {{ .Values.agentgateway.systemNamespace }} --from-literal=Authorization=YOUR_OPENAI_API_KEY
+
+  2. View kgateway proxy logs (logging is set via AgentgatewayParameters):
+     kubectl logs deployment/agentgateway-proxy -n {{ .Values.agentgateway.systemNamespace }} -f
+
+  3. Port-forward the gateway to test the LLM:
+     kubectl port-forward deployment/agentgateway-proxy -n {{ .Values.agentgateway.systemNamespace }} 8080:80
+
+  4. Test chat completions:
+     curl -s localhost:8080/v1/chat/completions -H content-type:application/json -d '{"model":"","messages":[{"role":"user","content":"Hi"}]}' | jq
+
+  5. Insomnia is the agent (OPENAI_BASE_URL set by root provision.sh). Trigger alerts to run analysis via the gateway (see repo demo-cases/).
+
+Documentation: see charts/ai-system/README.md and scripts/provision-ai-system.sh

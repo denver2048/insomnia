@@ -31,6 +31,11 @@ spec:
         - name: PROMETHEUS_URL
           value: {{ .Values.prometheus.url }}
 
+        {{- if .Values.openai.baseUrl }}
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        {{- end }}
+
         envFrom:
         - secretRef:
             name: {{ .Values.openai.existingSecret }}

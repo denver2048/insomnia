@@ -1,0 +1,18 @@
+{{- if .Values.kagent.enabled }}
+# ModelConfig: point Kagent agents to AgentGateway (OpenAI-compatible) so traffic flows Agent -> Gateway -> LLM
+# Agents reference this config; gateway holds the real API key in agentgateway-system.
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: gateway-llm
+  namespace: {{ .Values.kagent.namespace | default .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  provider: OpenAI
+  model: {{ .Values.llm.model | quote }}
+  openAI:
+    baseUrl: {{ .Values.kagent.gatewayBaseUrl | quote }}
+  # When using AgentGateway, auth is done at the gateway (backend secret). No apiKeySecret needed for agents.
+{{- end }}

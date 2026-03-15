@@ -2,12 +2,14 @@
 # INSOMNIA – Full local stack provisioning
 # 1. Infracore: Kind cluster, kube-prometheus-stack, Alertmanager config, alert rules
 # 2. Insomnia app: build image, load into Kind, install via Helm
+# 3. ai-system: Gateway API, AgentGateway, Kagent, LLM backend (set OPENAI_API_KEY for secrets)
 
 set -eu
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRACORE_DIR="$REPO_ROOT/infracore"
 CHARTS_DIR="$REPO_ROOT/charts/insomnia"
+AI_SYSTEM_SCRIPT="$REPO_ROOT/scripts/provision-ai-system.sh"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -103,6 +105,27 @@ helm_install_insomnia() {
   kubectl get pods -n insomnia
 }
 
+# --- Provision ai-system (AgentGateway, Kagent with no built-in agents, LLM backend) ---
+run_ai_system() {
+  if [[ ! -x "$AI_SYSTEM_SCRIPT" ]]; then
+    log_warn "ai-system script not found or not executable: $AI_SYSTEM_SCRIPT. Skipping."
+    return 0
+  fi
+  log_info "Running ai-system provisioning (Gateway API, AgentGateway, Kagent, OpenAI backend)..."
+  "$AI_SYSTEM_SCRIPT"
+}
+
+# --- Point Insomnia at AgentGateway so Insomnia is the agent using the LLM ---
+configure_insomnia_for_gateway() {
+  if ! helm status insomnia -n insomnia &>/dev/null; then
+    return 0
+  fi
+  local gateway_url="http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1"
+  log_info "Configuring Insomnia to use AgentGateway as LLM endpoint (Insomnia = agent)..."
+  helm upgrade insomnia "$CHARTS_DIR" -n insomnia --set "openai.baseUrl=$gateway_url"
+  kubectl rollout restart deployment/insomnia -n insomnia
+}
+
 # --- Create OpenAI secret from OPENAI_API_KEY env (optional) ---
 create_openai_secret() {
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
@@ -138,6 +161,8 @@ main() {
   run_step "Load Insomnia image into Kind" load_insomnia_image
   run_step "Helm install Insomnia" helm_install_insomnia
   run_step "Create OpenAI secret (if OPENAI_API_KEY set)" create_openai_secret
+  run_step "ai-system (Gateway API, AgentGateway, Kagent, LLM backend)" run_ai_system
+  run_step "Configure Insomnia to use gateway as agent" configure_insomnia_for_gateway
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))

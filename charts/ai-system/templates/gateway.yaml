@@ -1,0 +1,28 @@
+{{- if .Values.agentgateway.enabled }}
+# Gateway: exposes AgentGateway proxy; must exist in agentgateway-system so the control plane can deploy the proxy
+# Prerequisite: install AgentGateway control plane first (see provision script or README)
+# parametersRef applies AgentgatewayParameters (logging, etc.) so kgateway proxy logs are visible
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: agentgateway-proxy
+  namespace: {{ .Values.agentgateway.systemNamespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  gatewayClassName: agentgateway
+  infrastructure:
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: agentgateway-proxy-params
+      namespace: {{ .Values.agentgateway.systemNamespace }}
+  listeners:
+  - protocol: HTTP
+    port: 80
+    name: http
+    allowedRoutes:
+      namespaces:
+        from: All
+{{- end }}

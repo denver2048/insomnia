@@ -1,0 +1,67 @@
+# ai-system: AgentGateway + Kagent + Gateway API + OpenAI backend
+# Deploy in a clean namespace (e.g. agents or ai-system)
+
+namespace: ai-system
+
+# --- Gateway API (required for AgentGateway) ---
+gatewayApi:
+  # Install standard CRDs (v1.5.0); set to false if already installed cluster-wide
+  installCrds: true
+  # Experimental CRDs (optional, for advanced features)
+  installExperimental: false
+
+# --- AgentGateway (kgateway) ---
+agentgateway:
+  enabled: true
+  crdsVersion: v1.0.0-rc.1
+  chartVersion: v1.0.0-rc.1
+  # Control plane + proxy live in agentgateway-system by default; we create Gateway in ai-system
+  systemNamespace: agentgateway-system
+  # Enable experimental Gateway API features if needed
+  experimentalFeatures: true
+  # Proxy logging: so kgateway/agentgateway proxy logs are visible and useful
+  logging:
+    level: debug   # debug | info | warn | error
+    format: json  # json | text
+
+# --- LLM Backend (OpenAI) ---
+llm:
+  provider: openai
+  # Model name (e.g. gpt-4o, gpt-4o-mini)
+  model: gpt-5.2
+  # Secret name for API key (create separately; key in secret: Authorization)
+  secretName: openai-secret
+  # Optional: custom path for HTTPRoute (e.g. /v1/chat/completions)
+  routePath: ""  # default: route all to backend
+
+# --- Kagent (built-in agents disabled; Insomnia is the agent using the gateway) ---
+kagent:
+  enabled: true
+  # Provision script installs Kagent with all built-in agents disabled (agents.*.enabled=false)
+  builtInAgentsDisabled: true
+  # Namespace for Kagent (same as release namespace by default)
+  namespace: ""  # defaults to .Release.Namespace
+  # Gateway used by Insomnia (OPENAI_BASE_URL), not by Kagent built-in agents
+  useGateway: true
+  # Gateway service (in same cluster) for agents to call
+  gatewayService: agentgateway-proxy.agentgateway-system.svc.cluster.local
+  gatewayPort: 80
+  # Base URL for OpenAI-compatible API (agents will use this)
+  gatewayBaseUrl: "http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1"
+  # Install profile: demo (with built-in agents) or minimal
+  profile: demo
+  # Kagent Helm chart version (optional override)
+  chartVersion: ""
+
+# --- Secrets: do not store real keys in values; use existingSecret or create manually ---
+secrets:
+  # Create a placeholder secret; user must replace with real key via kubectl or CI
+  createOpenAISecret: false
+  # Name of existing secret for OpenAI API key (key: Authorization)
+  openaiSecretName: openai-secret
+
+# --- ConfigMaps (gateway/backend/routing config) ---
+configMaps:
+  gateway: {}
+  backend: {}
+  modelRouting: {}

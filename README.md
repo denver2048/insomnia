@@ -39,6 +39,15 @@ insomnia/
 │   ├── chart.yaml
 │   ├── values.yaml
 │   └── templates/
+├── charts/ai-system/         # AgentGateway + Kagent + Gateway API + Google AI Studio backend
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   ├── README.md
+│   └── templates/           # Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, ModelConfig
+├── scripts/
+│   ├── provision-ai-system.sh   # Deploy Gateway API, AgentGateway, Kagent, LLM backend
+│   ├── run-builtin-agent.sh     # Run a built-in Kagent agent through the gateway
+│   └── create-openai-secret.sh
 ├── demo-cases/               # Example K8s manifests to trigger alerts
 │   ├── OOM.yaml              # OOMKilled (memory limit + memory-hog)
 │   ├── Pending.yaml          # Pending (unschedulable resource requests)
@@ -146,6 +155,17 @@ The service listens on `0.0.0.0:8080`. Trigger alerts (e.g. by applying manifest
 | `demo-cases/ImagePull-tag.yaml` | ImagePullBackOff (tag `nginx:this-tag-does-not-exist`). |
 
 Apply with `kubectl apply -f demo-cases/<file>.yaml`; ensure Prometheus/Alertmanager and Insomnia are running so alerts flow to the agent.
+
+## AI system (AgentGateway + Kagent + LLM)
+
+For a Kubernetes deployment that includes **AgentGateway**, **Kagent**, and an **OpenAI** backend (default model: gpt-5.2) with Gateway API routing, use the `ai-system` chart and provision script. **All Kagent built-in agents are disabled**; **Insomnia is the agent** that uses the gateway. Root `provision.sh` configures Insomnia with `openai.baseUrl` pointing at the gateway so LLM traffic flows Insomnia → Gateway → OpenAI.
+
+- **Deploy**: `./scripts/provision-ai-system.sh` (set `OPENAI_API_KEY` for the LLM secret).
+- **Chart**: `charts/ai-system/` — Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, Kagent ModelConfig for built-in agents.
+- **Flow**: Kagent built-in agent → Gateway (Gateway API) → AgentgatewayBackend → OpenAI; API key in a Kubernetes Secret.
+- **Agent**: Insomnia (root `provision.sh` sets `openai.baseUrl` to the gateway). Trigger alerts to run analysis via the gateway (see demo-cases/).
+
+See [charts/ai-system/README.md](charts/ai-system/README.md) for details and manual install steps.
 
 ## Maintainer
 

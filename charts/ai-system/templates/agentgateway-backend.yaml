@@ -1,0 +1,53 @@
+{{- if .Values.agentgateway.enabled }}
+# AgentgatewayBackend: connects gateway to OpenAI
+# API key is in Secret (reference only; create secret in agentgateway-system)
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: openai
+  namespace: {{ .Values.agentgateway.systemNamespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  ai:
+    provider:
+      openai:
+        model: {{ .Values.llm.model | quote }}
+  policies:
+    auth:
+      secretRef:
+        name: {{ .Values.llm.secretName }}
+---
+# HTTPRoute: route traffic from Gateway to this backend (model endpoint)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openai
+  namespace: {{ .Values.agentgateway.systemNamespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  parentRefs:
+    - name: agentgateway-proxy
+      namespace: {{ .Values.agentgateway.systemNamespace }}
+  rules:
+  {{- if .Values.llm.routePath }}
+  - matches:
+    - path:
+        type: PathPrefix
+        value: {{ .Values.llm.routePath }}
+    backendRefs:
+    - name: openai
+      namespace: {{ .Values.agentgateway.systemNamespace }}
+      group: agentgateway.dev
+      kind: AgentgatewayBackend
+  {{- else }}
+  - backendRefs:
+    - name: openai
+      namespace: {{ .Values.agentgateway.systemNamespace }}
+      group: agentgateway.dev
+      kind: AgentgatewayBackend
+  {{- end }}
+{{- end }}

@@ -1,0 +1,21 @@
+{{- if .Values.agentgateway.enabled }}
+# AgentgatewayParameters: customize the proxy (e.g. logging so kgateway activity is visible)
+# Referenced by the Gateway via spec.infrastructure.parametersRef
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: agentgateway-proxy-params
+  namespace: {{ .Values.agentgateway.systemNamespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  logging:
+    {{- if .Values.agentgateway.logging }}
+    level: {{ .Values.agentgateway.logging.level | default "info" | quote }}
+    format: {{ .Values.agentgateway.logging.format | default "json" | quote }}
+    {{- else }}
+    level: "debug"
+    format: "json"
+    {{- end }}
+{{- end }}
