@@ -5,10 +5,16 @@ import sys
 from fastapi import FastAPI, Request
 
 from agent.commander import investigate
+from agent.triage import triage_result_to_dict
 from eventhub.hub import process_webhook
 
 logger = logging.getLogger(__name__)
 app = FastAPI()
+
+
+def _triage_enabled() -> bool:
+    val = os.getenv("INSOMNIA_USE_TRIAGE", "true").strip().lower()
+    return val in ("1", "true", "yes")
 
 
 @app.on_event("startup")
@@ -24,6 +30,18 @@ def _startup():
             "OPENAI_API_KEY or set OPENAI_API_KEY in the environment to enable LLM analysis."
         )
         print(msg, file=sys.stderr, flush=True)
+    if _triage_enabled():
+        logger.info(
+            "Triage is enabled. Alerts are classified by severity and only those marked for "
+            "investigation run the full pipeline. To use a remote ADK triage agent set "
+            "INSOMNIA_TRIAGE_AGENT_URL to the agent base URL (e.g. http://triage-agent:8001)."
+        )
+    else:
+        logger.info(
+            "Triage is disabled. All alerts that pass guardrails will be fully investigated. "
+            "To enable triage: set INSOMNIA_USE_TRIAGE=true (or omit it; default is true). "
+            "Optionally set INSOMNIA_TRIAGE_AGENT_URL to use a remote ADK triage agent."
+        )
 
 
 @app.get("/healthz")
@@ -47,18 +65,27 @@ async def alert_raw(request: Request):
 @app.post("/alert")
 async def alert(request: Request):
     payload = await request.json()
-    # Event hub: normalize webhook payload, run guardrails, then investigate only approved alerts
-    rejected, approved = await process_webhook(payload, on_approved=investigate)
+    # Event hub: normalize, guardrails, triage, then investigate only when triage says so
+    rejected, approved, triage_results = await process_webhook(
+        payload, on_approved=investigate, use_triage=True
+    )
 
     if not approved and not rejected:
         logger.info("Alert webhook received with no alert payload")
         return {"status": "no alert"}
+
+    triage_list = (
+        [triage_result_to_dict(t) for t in triage_results if t is not None]
+        if triage_results
+        else []
+    )
 
     if rejected and not approved:
         return {
             "status": "rejected",
             "reason": "guardrails",
             "rejected": [{"namespace": r.namespace, "pod": r.pod, "reason": r.reason} for r in rejected],
+            "triage": triage_list,
         }
 
     if rejected:
@@ -66,6 +93,7 @@ async def alert(request: Request):
             "status": "processed",
             "investigated": len(approved),
             "rejected": [{"namespace": r.namespace, "pod": r.pod, "reason": r.reason} for r in rejected],
+            "triage": triage_list,
         }
 
-    return {"status": "processed"}
+    return {"status": "processed", "investigated": len(approved), "triage": triage_list}
