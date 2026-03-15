@@ -60,14 +60,14 @@ insomnia/
    - Optional allowlist: only listed `alertname` values are accepted (env `INSOMNIA_GUARDRAIL_ALLOWED_ALERTNAMES`).
    - Optional blocklist: listed `alertname` values are rejected (env `INSOMNIA_GUARDRAIL_BLOCKED_ALERTNAMES`).
    - Rate limit: same `namespace/pod` is not investigated again within a cooldown window (env `INSOMNIA_GUARDRAIL_COOLDOWN_SECONDS`, default 300).
-3. **API** forwards only approved alerts to the agent; rejected alerts are logged and returned in the webhook response as `rejected` with reasons.
-4. **Agent** runs the graph with initial state `{ "alert": { "namespace", "pod" } }`.
-3. **Agent** (`agent.py`) runs the graph:
+3. **Triage** (optional) — For each alert that passes guardrails, a triage agent classifies severity (low/medium/high/critical) and decides whether to run full investigation. Set `INSOMNIA_USE_TRIAGE=false` to skip triage and investigate all approved alerts.
+4. **API** forwards only approved alerts that triage recommends investigating; rejected alerts are logged and returned in the webhook response as `rejected` with reasons.
+5. **Agent** runs the graph with initial state `{ "alert": { "namespace", "pod" } }`:
    - **k8s_investigator** — MCP `pods_get`, `events_list` → `state["k8s_data"]`
    - **log_investigator** — MCP `pods_log` → `state["logs"]`
    - **aggregate** — Builds a single evidence string (scope, k8s_data, logs).
    - **analysis** — If the evidence mentions an image, optionally enriches with ECR auth check, Docker Hub tags, or “other registry”; then calls `llm.analyze(evidence)` and sets `state["report"]`.
-4. **LLM** (`agent/llm.py`) uses a fixed system prompt (senior Kubernetes SRE, structured output: Root Cause, Confidence, Evidence, Suggested Fix) and returns the analysis text. The API logs the report and responds `{"status": "processed"}`.
+6. **LLM** (`agent/llm.py`) uses a fixed system prompt (senior Kubernetes SRE, structured output: Root Cause, Confidence, Evidence, Suggested Fix) and returns the analysis text. The API logs the report and responds `{"status": "processed"}`.
 
 ## Configuration
 
@@ -77,6 +77,7 @@ insomnia/
 - **MCP server** — The app expects an MCP server at `http://localhost:8081/sse` (see `mcp_client.py`) exposing tools such as `pods_get`, `events_list`, `pods_log`. The **infracore** RBAC is intended for a Kubernetes MCP server that reads pods, events, and logs.
 - **Alertmanager** — Use `infracore/alertmanager-config.yaml` so alerts with `insomnia: "true"` are sent to the Insomnia webhook (e.g. `http://insomnia.insomnia.svc:8000/alert` in-cluster or `http://host.docker.internal:8080/alert` when running locally).
 - **Guardrails** (event hub) — Optional env: `INSOMNIA_GUARDRAIL_ALLOWED_ALERTNAMES` (comma-separated alert names to allow; empty = all), `INSOMNIA_GUARDRAIL_BLOCKED_ALERTNAMES` (comma-separated to block), `INSOMNIA_GUARDRAIL_COOLDOWN_SECONDS` (default 300) to avoid re-investigating the same pod within that many seconds.
+- **Triage agent** — `INSOMNIA_USE_TRIAGE` (default `true`) enables triage. By default triage uses the same OpenAI key as analysis (`OPENAI_API_KEY`). To use a remote **ADK (Bedrock AgentCore) triage agent**, set `INSOMNIA_TRIAGE_AGENT_URL` to the agent’s base URL (e.g. `http://triage-agent:8001`); the main app will POST to `/invocations` with `{"alert": {...}}` and expect `{"severity", "should_investigate", "summary"}`. To run the triage agent as an ADK app locally: `python -m agent.adk_triage` (requires `bedrock-agentcore`); it listens on port 8001 by default (`TRIAGE_AGENT_PORT`).
 
 ## Provisioning (full stack)
 
