@@ -1,0 +1,15 @@
+{{- if .Values.agentgateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: {{ .Values.agentgateway.systemNamespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  provider: {{ .Values.llm.provider | quote }}
+  model: {{ .Values.llm.model | quote }}
+  secretRef: {{ .Values.llm.secretName | quote }}
+  # Documentation: AgentgatewayBackend resource applies this; secret holds Authorization (OpenAI API key)
+{{- end }}

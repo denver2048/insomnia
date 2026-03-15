@@ -1,0 +1,17 @@
+{{- if .Values.agentgateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-routing-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: ai-system
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  # Model routing: Agent -> Gateway (HTTPRoute) -> AgentgatewayBackend -> LLM
+  gateway-name: agentgateway-proxy
+  gateway-namespace: {{ .Values.agentgateway.systemNamespace | quote }}
+  backend-name: openai
+  route-path: {{ .Values.llm.routePath | default "/v1/chat/completions" | quote }}
+  description: "HTTPRoute routes to AgentgatewayBackend; backend maps to OpenAI"
+{{- end }}

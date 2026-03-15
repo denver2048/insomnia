@@ -33,14 +33,15 @@ def _analyze_stub(prompt: str) -> str:
 
 
 def _analyze_openai(prompt: str, api_key: str) -> str:
-    """Call OpenAI to analyze the incident evidence."""
+    """Call OpenAI (or gateway) to analyze the incident evidence."""
     try:
         from openai import OpenAI
     except ImportError:
         return _analyze_stub(prompt) + "\n(openai package not installed; add openai to requirements.txt)"
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    client = OpenAI(api_key=api_key)
+    base_url = (os.getenv("OPENAI_BASE_URL") or "").strip() or None
+    client = OpenAI(api_key=api_key, base_url=base_url)
 
     system = (
         "You are a senior Kubernetes SRE. Analyze the incident evidence and respond with: "

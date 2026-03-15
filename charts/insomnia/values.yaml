@@ -24,3 +24,5 @@ openai:
   createSecret: false
   apiKey: ""
   model: "gpt-4o-mini"
+  # When set (e.g. to AgentGateway), Insomnia uses this as the LLM endpoint (OpenAI-compatible). Example: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1
+  baseUrl: ""

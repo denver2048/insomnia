@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: pending-demo
 spec:
-  replicas: 1
+  replicas: 4
   selector:
     matchLabels:
       app: pending-demo
@@ -17,5 +17,5 @@ spec:
         image: nginx
         resources:
           requests:
-            cpu: "8"
-            memory: "8Gi"
+            cpu: "1"
+            memory: "1Gi"
