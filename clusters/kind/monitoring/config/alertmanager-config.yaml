@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: insomnia-webhook
+  namespace: default
+  labels:
+    release: kube-prometheus-stack
+spec:
+  route:
+    receiver: insomnia
+    groupBy: ["alertname"]
+    matchers:
+      - name: insomnia
+        value: "true"
+
+  receivers:
+    - name: insomnia
+      webhookConfigs:
+        - url: http://insomnia.insomnia.svc:8000/alert

@@ -1,12 +1,12 @@
 # ai-system: AgentGateway + Kagent + Gateway API + OpenAI backend
-# Deploy in a clean namespace (e.g. agents or ai-system)
+# Default namespace matches Insomnia + kagent (Flux clusters/kind).
 
-namespace: ai-system
+namespace: insomnia
 
 # --- Gateway API (required for AgentGateway) ---
 gatewayApi:
-  # Install standard CRDs (v1.5.0); set to false if already installed cluster-wide
-  installCrds: true
+  # Install standard CRDs (v1.5.0); false when Gateway API is installed by Flux (clusters/kind/infrastructure)
+  installCrds: false
   # Experimental CRDs (optional, for advanced features)
   installExperimental: false
 

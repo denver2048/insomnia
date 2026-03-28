@@ -1,0 +1,66 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ai-system
+  namespace: flux-system
+spec:
+  interval: 10m
+  releaseName: ai-system
+  targetNamespace: insomnia
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  dependsOn:
+    - name: agentgateway
+      namespace: flux-system
+    - name: kagent-crds
+      namespace: flux-system
+  chart:
+    spec:
+      chart: charts/ai-system
+      sourceRef:
+        kind: GitRepository
+        name: insomnia
+        namespace: flux-system
+  values:
+    namespace: insomnia
+    gatewayApi:
+      installCrds: false
+      installExperimental: false
+    kagent:
+      namespace: insomnia
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: insomnia
+  namespace: flux-system
+spec:
+  interval: 10m
+  releaseName: insomnia
+  targetNamespace: insomnia
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  dependsOn:
+    - name: agentgateway
+      namespace: flux-system
+    - name: kagent
+      namespace: flux-system
+  chart:
+    spec:
+      chart: charts/insomnia
+      sourceRef:
+        kind: GitRepository
+        name: insomnia
+        namespace: flux-system
+  values:
+    openai:
+      baseUrl: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1

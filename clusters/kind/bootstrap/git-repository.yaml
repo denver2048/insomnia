@@ -1,0 +1,11 @@
+# Patched by provision.sh: REPLACE_GIT_URL, REPLACE_GIT_BRANCH
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: insomnia
+  namespace: flux-system
+spec:
+  interval: 1m
+  ref:
+    branch: REPLACE_GIT_BRANCH
+  url: REPLACE_GIT_URL

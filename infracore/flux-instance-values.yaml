@@ -1,0 +1,18 @@
+# FluxInstance Helm values for local Kind (Flux Operator + controllers).
+# Ref: https://fluxcd.controlplane.io/operator/
+instance:
+  distribution:
+    version: "2.x"
+    registry: ghcr.io/fluxcd
+    artifact: oci://ghcr.io/controlplaneio-fluxcd/flux-operator-manifests:latest
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+  cluster:
+    type: kubernetes
+    size: small
+    domain: cluster.local
+    networkPolicy: true
+    multitenant: false

@@ -1,0 +1,44 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: agentgateway-crds
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://cr.agentgateway.dev/charts/agentgateway-crds
+  ref:
+    tag: v1.0.0-rc.1
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: agentgateway-chart
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://cr.agentgateway.dev/charts/agentgateway
+  ref:
+    tag: v1.0.0-rc.1
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kagent-crds
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds
+  ref:
+    semver: 0.8.x
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kagent-chart
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://ghcr.io/kagent-dev/kagent/helm/kagent
+  ref:
+    semver: 0.8.x

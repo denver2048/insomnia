@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# INSOMNIA infracore – Local infrastructure only (Kind, kube-prometheus-stack, alert rules).
-# Does not deploy the Insomnia app; use the root provision.sh for full stack (infracore + Helm).
+# INSOMNIA infracore – Core cluster only: Kind + Flux CD (Operator + controllers).
+# Monitoring (kube-prometheus-stack), alert rules, and apps are deployed via Flux (clusters/kind/).
 
 set -eu
 
@@ -77,66 +77,37 @@ create_cluster() {
   kubectl get nodes
 }
 
-# --- 3. Install kube-prometheus-stack ---
-install_prometheus_stack() {
-  log_info "Adding Prometheus Helm repo..."
-  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-  helm repo update
+# --- 3. Install Flux (Operator + Instance / controllers) ---
+install_flux() {
+  log_info "Installing Flux Operator (OCI Helm chart)..."
+  helm upgrade --install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+    --namespace flux-system \
+    --create-namespace
 
-  kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+  log_info "Installing Flux Instance (source, kustomize, helm, notification controllers)..."
+  helm upgrade --install flux-instance oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance \
+    --namespace flux-system \
+    -f flux-instance-values.yaml
 
-  if helm status kube-prometheus-stack -n monitoring &>/dev/null; then
-    log_warn "kube-prometheus-stack already installed in monitoring. Skipping."
-    return 0
-  fi
-
-  log_info "Installing kube-prometheus-stack..."
-  helm install kube-prometheus-stack \
-    prometheus-community/kube-prometheus-stack \
-    -n monitoring \
-    -f kube-prometheus-stack-values.yaml
-
-  log_info "Waiting for monitoring pods to be ready..."
-  kubectl wait --for=condition=ready pod -l "release=kube-prometheus-stack" -n monitoring --timeout=300s || true
-  kubectl get pods -n monitoring
-}
-
-# --- 4. Apply Alertmanager config ---
-apply_alertmanager_config() {
-  if [[ -f alertmanager-config.yaml ]]; then
-    log_info "Applying alertmanager-config.yaml..."
-    kubectl apply -f alertmanager-config.yaml
-  else
-    log_warn "alertmanager-config.yaml not found. Skipping."
-  fi
-}
-
-# --- 5. Apply Prometheus alert rules ---
-apply_alert_rules() {
-  if [[ -f alert-rules.yaml ]]; then
-    log_info "Applying alert-rules.yaml..."
-    kubectl apply -f alert-rules.yaml
-  else
-    log_warn "alert-rules.yaml not found. Skipping."
-  fi
+  log_info "Waiting for Flux workloads in flux-system..."
+  kubectl wait --for=condition=ready pod --all -n flux-system --timeout=300s 2>/dev/null || true
+  kubectl get pods -n flux-system
 }
 
 # --- Main ---
 main() {
   local total_start total_end total_elapsed
   total_start=$(date +%s)
-  log_info "Starting INSOMNIA infracore provisioning (Kind + Prometheus stack + alert rules)..."
+  log_info "Starting INSOMNIA infracore (Kind + Flux only). Apps and monitoring: Flux clusters/kind/..."
 
   run_step "Prerequisites" check_prereqs
   run_step "Create Kind cluster" create_cluster
-  run_step "Install kube-prometheus-stack" install_prometheus_stack
-  run_step "Apply Alertmanager config" apply_alertmanager_config
-  run_step "Apply alert rules" apply_alert_rules
+  run_step "Install Flux (Operator + controllers)" install_flux
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))
   log_info "Infracore provisioning complete. Total time: $(format_elapsed $total_elapsed)"
-  log_info "To deploy the Insomnia app, run from repo root: ./provision.sh"
+  log_info "From repo root: ./provision.sh applies Flux GitOps (monitoring + apps from clusters/kind)."
 }
 
 main "$@"

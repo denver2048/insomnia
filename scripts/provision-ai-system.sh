@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deploy AI system: Gateway API CRDs, AgentGateway (control plane + proxy), Kagent, and LLM backend config.
-# Run from repo root. Uses namespace ai-system (and agentgateway-system for AgentGateway).
+# Legacy / manual: Gateway API CRDs, AgentGateway, Kagent, ai-system chart (same as clusters/kind/releases via Flux).
+# Prefer: ./provision.sh (Flux GitOps) and push clusters/kind to origin.
+# Run from repo root. Uses namespace insomnia (and agentgateway-system for AgentGateway). Override with NAMESPACE=...
 # Prerequisites: kubectl, helm. Optional: kagent CLI for 'kagent invoke' at the end.
 
 set -eu
@@ -8,7 +9,7 @@ set -eu
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHARTS_DIR="$REPO_ROOT/charts/ai-system"
 AGENTGATEWAY_NAMESPACE="agentgateway-system"
-NAMESPACE="ai-system"
+NAMESPACE="${NAMESPACE:-insomnia}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

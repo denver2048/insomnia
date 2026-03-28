@@ -16,7 +16,8 @@ The pipeline is implemented as a **LangGraph** state graph: investigators run in
 
 ```
 insomnia/
-├── provision.sh              # Full stack: infracore + Helm install of Insomnia
+├── provision.sh              # Infracore + Flux bootstrap (apps from clusters/kind via GitOps)
+├── clusters/kind/            # Flux: infra, monitoring (Prometheus stack + rules), app HelmReleases
 ├── insomnia/                 # Main application
 │   ├── main.py               # Entrypoint: startup + uvicorn (FastAPI on :8080)
 │   ├── api.py                # FastAPI app; POST /alert webhook handler
@@ -45,7 +46,7 @@ insomnia/
 │   ├── README.md
 │   └── templates/           # Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, ModelConfig
 ├── scripts/
-│   ├── provision-ai-system.sh   # Deploy Gateway API, AgentGateway, Kagent, LLM backend
+│   ├── provision-ai-system.sh   # Legacy manual deploy (prefer Flux clusters/kind)
 │   ├── run-builtin-agent.sh     # Run a built-in Kagent agent through the gateway
 │   └── create-openai-secret.sh
 ├── demo-cases/               # Example K8s manifests to trigger alerts
@@ -90,7 +91,7 @@ insomnia/
 
 ## Provisioning (full stack)
 
-From the **repository root**, provision the full local stack (Kind cluster, kube-prometheus-stack, alert rules, then Insomnia app via Helm):
+From the **repository root**, provision the cluster (Kind, Prometheus stack, Flux) and **Flux GitOps** for apps defined under `clusters/kind/`:
 
 ```bash
 ./provision.sh
@@ -98,9 +99,12 @@ From the **repository root**, provision the full local stack (Kind cluster, kube
 
 This script:
 
-1. Runs **infracore** (`infracore/provision.sh`): Kind cluster, kube-prometheus-stack, Alertmanager config, Prometheus alert rules.
-2. Builds the Insomnia Docker image (`insomnia:latest`) and loads it into the Kind cluster.
-3. Installs the Insomnia app with **Helm** from `charts/insomnia` into the `insomnia` namespace (Deployment, Service, ServiceAccount, RBAC).
+1. Runs **infracore** (`infracore/provision.sh`): Kind cluster and Flux (Operator + controllers) only.
+2. Applies **Flux bootstrap** (`clusters/kind/bootstrap/`): `GitRepository` (from `git remote origin`) and `Kustomization` resources for `clusters/kind/infrastructure`, `clusters/kind/monitoring/stack` (kube-prometheus-stack), `clusters/kind/monitoring/config` (PrometheusRule + AlertmanagerConfig), and `clusters/kind/releases` (AgentGateway, Kagent, `charts/ai-system`, `charts/insomnia`).
+3. Optionally builds and loads `insomnia:latest` into Kind when `PROVISION_LOAD_INSOMNIA_IMAGE=1` (needed for a **local** image with `imagePullPolicy: IfNotPresent`).
+4. Optionally creates OpenAI secrets when `OPENAI_API_KEY` is set.
+
+**GitOps:** push your branch to `origin` so Flux can pull the same manifests it reconciles. Check `kubectl get kustomization,helmrelease -n flux-system`.
 
 Prerequisites: `docker`, `kind`, `kubectl`, `helm` (e.g. `brew install kind kubectl helm`). See `infracore/README.md` for manual infracore steps.
 
@@ -158,12 +162,12 @@ Apply with `kubectl apply -f demo-cases/<file>.yaml`; ensure Prometheus/Alertman
 
 ## AI system (AgentGateway + Kagent + LLM)
 
-For a Kubernetes deployment that includes **AgentGateway**, **Kagent**, and an **OpenAI** backend (default model: gpt-5.2) with Gateway API routing, use the `ai-system` chart and provision script. **All Kagent built-in agents are disabled**; **Insomnia is the agent** that uses the gateway. Root `provision.sh` configures Insomnia with `openai.baseUrl` pointing at the gateway so LLM traffic flows Insomnia → Gateway → OpenAI.
+For a Kubernetes deployment that includes **AgentGateway**, **Kagent**, and an **OpenAI** backend (default model: gpt-5.2) with Gateway API routing, manifests live under **`clusters/kind/releases`** (Flux). **Kagent**, the **ai-system** chart, the **Insomnia** Helm release, and the **`Agent` CR** (`clusters/kind/releases/agent/`, Flux `insomnia-kagent-agent`) all target namespace **`insomnia`**. **All Kagent built-in agents are disabled**; the **Declarative** `Agent` named **`insomnia`** registers the SRE agent in Kagent (same `ModelConfig` as the chart). The Insomnia HelmRelease sets `openai.baseUrl` to the AgentGateway service so LLM traffic flows Insomnia → Gateway → OpenAI.
 
-- **Deploy**: `./scripts/provision-ai-system.sh` (set `OPENAI_API_KEY` for the LLM secret).
-- **Chart**: `charts/ai-system/` — Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, Kagent ModelConfig for built-in agents.
-- **Flow**: Kagent built-in agent → Gateway (Gateway API) → AgentgatewayBackend → OpenAI; API key in a Kubernetes Secret.
-- **Agent**: Insomnia (root `provision.sh` sets `openai.baseUrl` to the gateway). Trigger alerts to run analysis via the gateway (see demo-cases/).
+- **Deploy**: `./provision.sh`, then push to `origin` so Flux reconciles. Optionally `./scripts/provision-ai-system.sh` for a legacy manual install.
+- **Chart**: `charts/ai-system/` — Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, Kagent ModelConfig (wired by Flux).
+- **Flow**: Insomnia → Gateway (Gateway API) → AgentgatewayBackend → OpenAI; API keys in Kubernetes Secrets (`OPENAI_API_KEY` / `./provision.sh` optional step).
+- **Kagent**: `kagent invoke --agent insomnia` (after Flux applies the `Agent` CR). Alertmanager webhooks still hit `insomnia.insomnia.svc` (see demo-cases/).
 
 See [charts/ai-system/README.md](charts/ai-system/README.md) for details and manual install steps.
 
