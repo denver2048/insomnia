@@ -41,6 +41,8 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
+  # Helm default wait is 5m; GHCR pulls (incl. multi-arch) + rollout often need longer on Kind.
+  timeout: 20m
   releaseName: insomnia
   targetNamespace: insomnia
   install:
@@ -62,5 +64,12 @@ spec:
         name: insomnia
         namespace: flux-system
   values:
+    # Set here so Flux always applies GHCR (chart defaults alone can stay stale if merge/revision is old).
+    image:
+      repository: ghcr.io/denver2048/insomnia
+      tag: latest
+      pullPolicy: Always
+    imagePullSecrets:
+      - name: ghcr-credentials
     openai:
       baseUrl: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1

@@ -61,6 +61,9 @@ jobs:
         env:
           REGISTRY: ${{ env.REGISTRY }}
 
+      - name: Set up QEMU (cross-arch for arm64 builds on amd64 runners)
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -85,13 +88,21 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
             type=raw,value=${{ steps.chart.outputs.version }}-pr.${{ github.event.number }},enable=${{ github.event_name == 'pull_request' }}
 
+      # Do not use GHA cache (type=gha) for multi-platform pushes: it can produce a manifest
+      # with only one arch, causing "no match for platform" on arm64 Kind nodes.
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
+          # Kind on Apple Silicon / arm64 nodes need linux/arm64; clusters often amd64.
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Verify multi-arch manifest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}:latest"

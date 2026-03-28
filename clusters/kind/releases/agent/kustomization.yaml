@@ -1,5 +1,3 @@
-# Applied by Flux Kustomization insomnia-kagent-agent (after insomnia-releases) so
-# agents.kagent.dev CRDs exist before this Agent is validated/applied.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

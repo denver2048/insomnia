@@ -1,19 +1,36 @@
-# Registers the Insomnia SRE agent in Kagent (same namespace as the insomnia Deployment and kagent).
-# Uses the ai-system chart ModelConfig gateway-llm (AgentGateway → OpenAI-compatible backend).
-# apiVersion must match served CRDs from kagent-crds (v1alpha1 is the stable choice for chart 0.8.x).
-# Invoke via kagent CLI / dashboard; Alertmanager still targets Service insomnia in this namespace.
-apiVersion: kagent.dev/v1alpha1
+# v1alpha2 is the CRD storage version; the UI lists /apis/kagent.dev/v1alpha2/.../agents.
+# Reference the Helm-created RemoteMCPServer kagent-tool-server (release name kagent) so the agent has MCP tools.
+# Managed by Flux Kustomization insomnia-kagent-agent (not Helm: Helm strict SSA rejects spec.type on this CRD).
+apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
   name: insomnia
   namespace: insomnia
 spec:
-  description: Insomnia — Kubernetes incident analysis (registered in Kagent; webhook workload is Deployment insomnia).
+  description: Insomnia — Kubernetes incident analysis (webhook workload is Deployment insomnia).
   type: Declarative
   declarative:
     runtime: python
     modelConfig: gateway-llm
+    stream: false
     systemMessage: |
       You are the Insomnia SRE agent. You analyze Kubernetes incidents using cluster context.
       When invoked through Kagent, give concise, actionable answers aligned with on-call workflows.
-    stream: false
+    tools:
+      - type: McpServer
+        mcpServer:
+          name: kagent-tool-server
+          kind: RemoteMCPServer
+          apiGroup: kagent.dev
+          toolNames:
+            - k8s_get_resources
+            - k8s_get_available_api_resources
+    a2aConfig:
+      skills:
+        - id: insomnia
+          name: Insomnia
+          description: Kubernetes incident analysis and on-call assistance
+          tags:
+            - kubernetes
+            - sre
+            - incidents

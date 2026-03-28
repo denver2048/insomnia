@@ -1,13 +1,13 @@
 # ai-system Helm Chart
 
-Deploys **AgentGateway**, **Kagent**, and **LLM backend configuration** (OpenAI) in Kubernetes using the Gateway API. Chart resources run in **`insomnia` by default** (same namespace as the Insomnia app and Kagent), with AgentGateway control plane in `agentgateway-system`. Built-in Kagent agents are disabled in Flux; **Flux** applies `clusters/kind/releases/agent/` **(Kustomization `insomnia-kagent-agent`, after Helm releases)** so the `Agent` CR registers Insomnia in Kagent alongside the HTTP webhook Deployment.
+Deploys **AgentGateway**, **Kagent**, and **LLM backend configuration** (OpenAI) in Kubernetes using the Gateway API. Chart resources run in **`insomnia` by default** (same namespace as the Insomnia app and Kagent), with AgentGateway control plane in `agentgateway-system`. Built-in Kagent agents are disabled in Flux. The **Insomnia `Agent` CR** is **not** in this chart: it lives under **`clusters/kind/releases/agent/`** and is applied by Flux **`insomnia-kagent-agent`** (nested `spec.type` / `spec.declarative` would break Helm strict SSA and a flat spec crashes the kagent controller).
 
 ## Architecture
 
 - **Gateway API**: Standard + optional experimental CRDs.
 - **AgentGateway**: Control plane in `agentgateway-system`; Gateway resource creates the proxy (Deployment + Service). AgentgatewayBackend + HTTPRoute route traffic to the LLM.
 - **LLM Backend**: OpenAI via AgentgatewayBackend (default model: gpt-5.2); API key from a Kubernetes Secret.
-- **Kagent**: Installed in `insomnia` with **built-in agents disabled** (Flux Helm values). **Insomnia** uses the gateway for LLM (`openai.baseUrl` on the Insomnia chart). A **Declarative** `Agent` named `insomnia` registers the SRE agent in Kagent (see `clusters/kind/releases/agent/`).
+- **Kagent**: Installed in `insomnia` with **built-in agents disabled** (Flux Helm values). **Insomnia** uses the gateway for LLM (`openai.baseUrl` on the Insomnia chart). The **`Agent` `insomnia`** is applied by Flux from **`clusters/kind/releases/agent/`**.
 
 ## Prerequisites
 

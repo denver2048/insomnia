@@ -2,7 +2,7 @@
 # INSOMNIA – Local stack provisioning
 # 1. Infracore: Kind cluster + Flux CD only
 # 2. Flux GitOps: GitRepository + Kustomizations (clusters/kind) — monitoring, alerts, AgentGateway, Kagent, ai-system, Insomnia
-# 3. Optional: build/load insomnia:latest into Kind (PROVISION_LOAD_INSOMNIA_IMAGE=1), OpenAI secrets (OPENAI_API_KEY)
+# 3. Optional: GHCR pull secret for private insomnia image (GHCR_TOKEN + GHCR_USERNAME), build/load local image (PROVISION_LOAD_INSOMNIA_IMAGE=1), OpenAI (OPENAI_API_KEY)
 #
 # GitOps: push commits to origin before expecting Flux to reconcile app manifests.
 
@@ -102,6 +102,36 @@ apply_flux_bootstrap() {
   log_info "Flux will reconcile clusters/kind from origin once changes are pushed. Check: kubectl get kustomization -n flux-system"
 }
 
+# --- GHCR pull secret for private ghcr.io/<owner>/<repo> insomnia image (optional) ---
+ensure_ghcr_pull_secret() {
+  kubectl create namespace insomnia --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+  if [[ -z "${GHCR_TOKEN:-}" ]]; then
+    log_warn "GHCR_TOKEN not set. If the insomnia image on GHCR is private, the pod will ImagePullBackOff until you:"
+    log_warn "  export GHCR_TOKEN=<PAT with read:packages>  # optional: GHCR_USERNAME=your-github-username"
+    log_warn "  re-run ./provision.sh (this step), or: kubectl create secret docker-registry ghcr-credentials -n insomnia ..."
+    log_warn "Or make the GHCR package public: Package settings → Change visibility."
+    return 0
+  fi
+  local user="${GHCR_USERNAME:-}"
+  if [[ -z "$user" ]]; then
+    user=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null | sed -n 's/.*github\.com[:/]\([^/]*\).*/\1/p' || true)
+  fi
+  if [[ -z "$user" ]]; then
+    log_error "Set GHCR_USERNAME or use a GitHub origin remote so GHCR login username can be inferred."
+    exit 1
+  fi
+  kubectl create secret docker-registry ghcr-credentials \
+    --docker-server=ghcr.io \
+    --docker-username="$user" \
+    --docker-password="$GHCR_TOKEN" \
+    -n insomnia \
+    --dry-run=client -o yaml | kubectl apply -f -
+  log_info "Applied docker-registry secret ghcr-credentials in namespace insomnia."
+  if kubectl get deployment insomnia -n insomnia &>/dev/null; then
+    kubectl rollout restart deployment/insomnia -n insomnia 2>/dev/null || true
+  fi
+}
+
 # --- Build and load insomnia:latest into Kind (optional; for local image) ---
 build_load_insomnia_image() {
   log_info "Building insomnia:latest from $REPO_ROOT..."
@@ -149,6 +179,7 @@ main() {
 
   run_step "Infracore (Kind + Flux only)" run_infracore
   run_step "Flux GitOps bootstrap (GitRepository + Kustomizations)" apply_flux_bootstrap
+  run_step "Optional GHCR pull secret (GHCR_TOKEN)" ensure_ghcr_pull_secret
 
   if [[ "${PROVISION_LOAD_INSOMNIA_IMAGE:-}" == "1" ]]; then
     run_step "Build and load insomnia:latest into Kind" build_load_insomnia_image
