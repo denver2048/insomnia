@@ -42,7 +42,15 @@ spec:
     kind: OCIRepository
     name: kagent-chart
     namespace: flux-system
+  # Chart.Version from OCI can include '+…' build metadata; K8s label values cannot contain '+'.
+  # Keep this value aligned with clusters/kind/releases/oci-repositories.yaml kagent-chart ref.tag.
+  commonMetadata:
+    labels:
+      app.kubernetes.io/version: "0.8.1"
   values:
+    # Default image tag coalesces to .Chart.Version; OCI can supply semver with '+…' which is not a valid image tag.
+    # Do not set global.tag: kagent-tools is its own subchart (image tag 0.1.x); forcing 0.8.1 breaks ghcr.io/.../tools:0.8.1 (not published).
+    tag: "0.8.1"
     providers:
       default: openAI
       openAI:

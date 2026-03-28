@@ -2,6 +2,6 @@ apiVersion: v2
 name: ai-system
 description: AgentGateway + Kagent + LLM backend (Google AI Studio) for Kubernetes
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1"
 kubeVersion: ">=1.28.0"

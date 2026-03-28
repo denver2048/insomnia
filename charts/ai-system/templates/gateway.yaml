@@ -1,7 +1,6 @@
 {{- if .Values.agentgateway.enabled }}
-# Gateway: exposes AgentGateway proxy; must exist in agentgateway-system so the control plane can deploy the proxy
-# Prerequisite: install AgentGateway control plane first (see provision script or README)
-# parametersRef applies AgentgatewayParameters (logging, etc.) so kgateway proxy logs are visible
+# Gateway: exposes AgentGateway proxy (agentgateway-system). parametersRef → AgentgatewayParameters (same namespace; v1 Gateway allows only group/kind/name, not namespace).
+# If upgrade fails with parametersRef.namespace, delete the existing Gateway once: kubectl delete gateway agentgateway-proxy -n agentgateway-system
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -17,7 +16,6 @@ spec:
       group: agentgateway.dev
       kind: AgentgatewayParameters
       name: agentgateway-proxy-params
-      namespace: {{ .Values.agentgateway.systemNamespace }}
   listeners:
   - protocol: HTTP
     port: 80
