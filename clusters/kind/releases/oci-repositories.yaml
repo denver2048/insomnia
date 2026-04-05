@@ -44,3 +44,14 @@ spec:
   url: oci://ghcr.io/kagent-dev/kagent/helm/kagent
   ref:
     tag: "0.8.1"
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: phoenix-helm
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://registry-1.docker.io/arizephoenix/phoenix-helm
+  ref:
+    tag: "5.0.23"

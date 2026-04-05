@@ -2,9 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: insomnia
+  labels:
+    app.kubernetes.io/name: insomnia
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   selector:
-    app: insomnia
+    {{- include "insomnia.matchLabels" . | nindent 4 }}
   ports:
-  - port: {{ .Values.service.port }}
+  # Named "api" (not "http") to avoid duplicate port names when SSA merges with an existing Service.
+  - name: api
+    port: {{ .Values.service.port }}
     targetPort: 8000
+    protocol: TCP

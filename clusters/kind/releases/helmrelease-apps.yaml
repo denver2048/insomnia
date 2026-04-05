@@ -41,7 +41,6 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m
-  # Helm default wait is 5m; GHCR pulls (incl. multi-arch) + rollout often need longer on Kind.
   timeout: 20m
   releaseName: insomnia
   targetNamespace: insomnia
@@ -56,6 +55,8 @@ spec:
       namespace: flux-system
     - name: kagent
       namespace: flux-system
+    - name: phoenix
+      namespace: flux-system
   chart:
     spec:
       chart: charts/insomnia
@@ -64,7 +65,6 @@ spec:
         name: insomnia
         namespace: flux-system
   values:
-    # Set here so Flux always applies GHCR (chart defaults alone can stay stale if merge/revision is old).
     image:
       repository: ghcr.io/denver2048/insomnia
       tag: latest
@@ -73,3 +73,11 @@ spec:
       - name: ghcr-credentials
     openai:
       baseUrl: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1
+    phoenix:
+      # Host used to derive OTLP gRPC :4317 (default) or HTTP :6006/v1/traces if otlpProtocol=http/protobuf
+      collectorEndpoint: http://phoenix-svc.monitoring.svc.cluster.local:6006
+      projectName: insomnia
+      # Omit PHOENIX_API_KEY while Phoenix helm has auth.enableAuth: false — a bad key can reject OTLP.
+      # When you enable Phoenix auth, set apiKeyExistingSecret: insomnia-phoenix and sync the key.
+      otelServiceName: insomnia
+      otlpProtocol: grpc
