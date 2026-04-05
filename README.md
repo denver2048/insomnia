@@ -162,12 +162,12 @@ Apply with `kubectl apply -f demo-cases/<file>.yaml`; ensure Prometheus/Alertman
 
 ## AI system (AgentGateway + Kagent + LLM)
 
-For a Kubernetes deployment that includes **AgentGateway**, **Kagent**, and an **OpenAI** backend (default model: gpt-5.2) with Gateway API routing, manifests live under **`clusters/kind/releases`** (Flux). **Kagent**, the **ai-system** chart (**`gateway-llm`** `ModelConfig` and gateways), the **Insomnia** Helm release, and the **`Agent` CR** (`clusters/kind/releases/agent/`, Flux **`insomnia-kagent-agent`**) all target namespace **`insomnia`**. **All Kagent built-in agents are disabled**; the **Declarative** `Agent` **`insomnia`** registers the SRE agent in Kagent. The Insomnia HelmRelease sets `openai.baseUrl` to the AgentGateway service so LLM traffic flows Insomnia → Gateway → OpenAI.
+For a Kubernetes deployment that includes **AgentGateway**, **Kagent**, and an **OpenAI** backend (default model: gpt-5.2) with Gateway API routing, manifests live under **`clusters/kind/releases`** (Flux). **Kagent**, the **ai-system** chart (**`gateway-llm`** `ModelConfig` and gateways), and the **Insomnia** Helm release (`charts/insomnia`) all target namespace **`insomnia`** (where applicable). **All Kagent built-in agents are disabled**; the Insomnia **workload** is the webhook/LLM app deployed by Flux. The Insomnia HelmRelease sets `openai.baseUrl` to the AgentGateway service so LLM traffic flows Insomnia → Gateway → OpenAI.
 
 - **Deploy**: `./provision.sh`, then push to `origin` so Flux reconciles. Optionally `./scripts/provision-ai-system.sh` for a legacy manual install.
 - **Chart**: `charts/ai-system/` — Gateway, HTTPRoute, AgentgatewayBackend, ConfigMaps, Kagent ModelConfig (wired by Flux).
 - **Flow**: Insomnia → Gateway (Gateway API) → AgentgatewayBackend → OpenAI; API keys in Kubernetes Secrets (`OPENAI_API_KEY` / `./provision.sh` optional step).
-- **Kagent**: `kagent invoke --agent insomnia` (after Flux applies the `Agent` CR). Alertmanager webhooks still hit `insomnia.insomnia.svc` (see demo-cases/).
+- **Kagent**: control plane only (built-in agents off). Alertmanager webhooks hit `insomnia.insomnia.svc` (see demo-cases/).
 
 See [charts/ai-system/README.md](charts/ai-system/README.md) for details and manual install steps.
 

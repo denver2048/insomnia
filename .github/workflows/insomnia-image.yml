@@ -1,38 +1,20 @@
 name: Insomnia image
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
-    paths:
-      - "Dockerfile"
-      - "requirements.txt"
-      - "api/**"
-      - "agent/**"
-      - "config/**"
-      - "eventhub/**"
-      - "investigators/**"
-      - "tools/**"
-      - "charts/insomnia/Chart.yaml"
-      - ".github/workflows/insomnia-image.yml"
-  pull_request:
-    paths:
-      - "Dockerfile"
-      - "requirements.txt"
-      - "api/**"
-      - "agent/**"
-      - "config/**"
-      - "eventhub/**"
-      - "investigators/**"
-      - "tools/**"
-      - "charts/insomnia/Chart.yaml"
-      - ".github/workflows/insomnia-image.yml"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (semver, e.g. 0.1.11 or v0.1.11)"
+        required: true
+        type: string
+      push_latest:
+        description: "Also tag and push as latest"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -49,11 +31,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Helm chart version
-        id: chart
+      - name: Normalize image tag
+        id: norm
         run: |
-          VERSION=$(grep -E '^version:' charts/insomnia/Chart.yaml | head -1 | awk '{print $2}')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          TAG="${{ inputs.tag }}"
+          TAG="${TAG#v}"
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::tag must be semver (e.g. 0.1.11 or v0.1.11)"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Image name (GHCR must be lowercase)
         id: image
@@ -68,7 +55,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -81,12 +67,8 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=${{ steps.chart.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
-            type=raw,value=${{ steps.chart.outputs.version }}-pr.${{ github.event.number }},enable=${{ github.event_name == 'pull_request' }}
+            type=raw,value=${{ steps.norm.outputs.tag }}
+            type=raw,value=latest,enable=${{ inputs.push_latest == true }}
 
       # Do not use GHA cache (type=gha) for multi-platform pushes: it can produce a manifest
       # with only one arch, causing "no match for platform" on arm64 Kind nodes.
@@ -97,12 +79,11 @@ jobs:
           file: Dockerfile
           # Kind on Apple Silicon / arm64 nodes need linux/arm64; clusters often amd64.
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
 
       - name: Verify multi-arch manifest
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}:latest"
+        run: docker buildx imagetools inspect "${{ steps.image.outputs.name }}:${{ steps.norm.outputs.tag }}"
