@@ -1,5 +1,8 @@
 replicaCount: 1
 
+# Optional: override Chart.name for labels (leave empty for default).
+nameOverride: ""
+
 # CI pushes to ghcr.io/<github-owner>/<repo> (see .github/workflows/insomnia-image.yml).
 image:
   repository: ghcr.io/denver2048/insomnia
@@ -32,3 +35,32 @@ openai:
   model: "gpt-4o-mini"
   # When set (e.g. to AgentGateway), Insomnia uses this as the LLM endpoint (OpenAI-compatible). Example: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1
   baseUrl: ""
+
+# Arize Phoenix (LLM traces). Set collectorEndpoint to enable; see https://docs.arize.com/phoenix/tracing/how-to-tracing/setup-tracing/setup-using-phoenix-otel
+phoenix:
+  collectorEndpoint: "http://localhost:6006"
+  projectName: default
+  # Optional: Secret in this namespace with key PHOENIX_API_KEY (or apiKeySecretKey). Required if Phoenix has auth.enableAuth=true.
+  # ./provision.sh creates insomnia-phoenix from phoenix-secret when possible.
+  apiKeyExistingSecret: ""
+  apiKeySecretKey: PHOENIX_API_KEY
+  # OpenTelemetry resource (shown in Phoenix UI)
+  otelServiceName: insomnia
+  # Set true to skip the startup bootstrap span (project still appears on first real trace)
+  skipBootstrapTrace: false
+  # Set true to expose GET /debug/phoenix-trace (emit another test span)
+  debugHttpEndpoint: false
+  # OTLP transport: grpc (default, uses host from collectorEndpoint + port 4317) or http/protobuf (6006/v1/traces)
+  otlpProtocol: grpc
+
+# Optional: Jira MCP (stdio via npx) + REST ITSM notifications. Secret: JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN.
+jira:
+  enabled: false
+  existingSecret: insomnia-jira
+  # When false, MCP fetch step is skipped but REST ITSM can still run if itsmNotify is true.
+  mcpEnabled: true
+  # Post investigation report to Jira (comment on linked issue, or new issue in itsmProjectKey).
+  itsmNotify: false
+  # Required for creating issues when the alert has no jira_issue / jira_key / issue_key label or annotation.
+  itsmProjectKey: ""
+  itsmIssueType: Task

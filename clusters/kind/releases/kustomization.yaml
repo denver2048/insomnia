@@ -5,3 +5,4 @@ resources:
   - helmrelease-agentgateway.yaml
   - helmrelease-kagent.yaml
   - helmrelease-apps.yaml
+  - helmrelease-phoenix.yaml

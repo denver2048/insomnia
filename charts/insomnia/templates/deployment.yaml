@@ -2,15 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: insomnia
+  labels:
+    app.kubernetes.io/name: insomnia
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: insomnia
+      {{- include "insomnia.matchLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: insomnia
+        {{- include "insomnia.podLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -38,6 +41,69 @@ spec:
         {{- if .Values.openai.baseUrl }}
         - name: OPENAI_BASE_URL
           value: {{ .Values.openai.baseUrl | quote }}
+        {{- end }}
+
+        {{- if .Values.phoenix.collectorEndpoint }}
+        - name: PHOENIX_COLLECTOR_ENDPOINT
+          value: {{ .Values.phoenix.collectorEndpoint | quote }}
+        - name: PHOENIX_PROJECT_NAME
+          value: {{ .Values.phoenix.projectName | quote }}
+        - name: OTEL_SERVICE_NAME
+          value: {{ .Values.phoenix.otelServiceName | default "insomnia" | quote }}
+        {{- if .Values.phoenix.skipBootstrapTrace }}
+        - name: PHOENIX_SKIP_BOOTSTRAP_TRACE
+          value: "true"
+        {{- end }}
+        {{- if .Values.phoenix.debugHttpEndpoint }}
+        - name: INSOMNIA_PHOENIX_DEBUG_ENDPOINT
+          value: "true"
+        {{- end }}
+        - name: PHOENIX_OTLP_PROTOCOL
+          value: {{ .Values.phoenix.otlpProtocol | default "grpc" | quote }}
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          value: "true"
+        {{- end }}
+        {{- if .Values.phoenix.apiKeyExistingSecret }}
+        - name: PHOENIX_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.phoenix.apiKeyExistingSecret | quote }}
+              key: {{ .Values.phoenix.apiKeySecretKey | default "PHOENIX_API_KEY" | quote }}
+              optional: true
+        {{- end }}
+
+        {{- if .Values.jira.enabled }}
+        {{- $jiraMcp := true -}}
+        {{- if hasKey .Values.jira "mcpEnabled" -}}
+        {{- $jiraMcp = .Values.jira.mcpEnabled -}}
+        {{- end }}
+        - name: JIRA_MCP_ENABLED
+          value: {{ if $jiraMcp }}"true"{{ else }}"false"{{ end }}
+        - name: JIRA_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.jira.existingSecret | quote }}
+              key: JIRA_BASE_URL
+        - name: JIRA_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.jira.existingSecret | quote }}
+              key: JIRA_USERNAME
+        - name: JIRA_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.jira.existingSecret | quote }}
+              key: JIRA_API_TOKEN
+        {{- if .Values.jira.itsmNotify }}
+        - name: INSOMNIA_JIRA_ITSM_NOTIFY_ENABLED
+          value: "true"
+        {{- end }}
+        {{- if .Values.jira.itsmProjectKey }}
+        - name: JIRA_ITSM_PROJECT_KEY
+          value: {{ .Values.jira.itsmProjectKey | quote }}
+        {{- end }}
+        - name: JIRA_ITSM_ISSUE_TYPE
+          value: {{ .Values.jira.itsmIssueType | default "Task" | quote }}
         {{- end }}
 
         envFrom:

@@ -2,7 +2,12 @@ import logging
 import os
 import sys
 
-from fastapi import FastAPI, Request
+from api.phoenix_otel import init_phoenix_otel
+
+# Phoenix + OpenInference must run before any OpenAI client is constructed (lazy imports included).
+init_phoenix_otel()
+
+from fastapi import FastAPI, HTTPException, Request
 
 from agent.commander import investigate
 from agent.triage import triage_result_to_dict
@@ -53,6 +58,18 @@ async def healthz():
 async def readyz():
     # тут пізніше можна додати перевірку Prometheus/Loki
     return {"status": "ready"}
+
+
+@app.get("/debug/phoenix-trace")
+async def phoenix_debug_trace():
+    """Emit a test @tracer.chain span (enable with INSOMNIA_PHOENIX_DEBUG_ENDPOINT=true)."""
+    if os.getenv("INSOMNIA_PHOENIX_DEBUG_ENDPOINT", "").strip().lower() not in ("1", "true", "yes"):
+        raise HTTPException(status_code=404, detail="disabled")
+    from api.phoenix_otel import emit_debug_phoenix_chain_trace
+
+    if not emit_debug_phoenix_chain_trace():
+        raise HTTPException(status_code=503, detail="Phoenix OTEL not initialized")
+    return {"ok": True, "detail": "debug chain span emitted"}
 
 
 @app.post("/alert/raw")

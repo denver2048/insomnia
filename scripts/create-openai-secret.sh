@@ -28,11 +28,13 @@ fi
 if [[ -n "$MODEL" ]]; then
   kubectl create secret generic "$SECRET_NAME" \
     --from-literal=OPENAI_API_KEY="$KEY" \
+    --from-literal=OPENAI_KEY="$KEY" \
     --from-literal=OPENAI_MODEL="$MODEL" \
     -n "$NAMESPACE"
 else
   kubectl create secret generic "$SECRET_NAME" \
     --from-literal=OPENAI_API_KEY="$KEY" \
+    --from-literal=OPENAI_KEY="$KEY" \
     -n "$NAMESPACE"
 fi
 

@@ -14,6 +14,7 @@ async def root_cause(state):
         "logs": state.get("logs"),
         "metrics": state.get("metrics"),
         "registry": state.get("registry"),
+        "jira": state.get("jira"),
     }
 
     prompt = f"""

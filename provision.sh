@@ -2,7 +2,11 @@
 # INSOMNIA – Local stack provisioning
 # 1. Infracore: Kind cluster + Flux CD only
 # 2. Flux GitOps: GitRepository + Kustomizations (clusters/kind) — monitoring, alerts, AgentGateway, Kagent, ai-system, Insomnia
-# 3. Optional: GHCR pull secret for private insomnia image (GHCR_TOKEN + GHCR_USERNAME), build/load local image (PROVISION_LOAD_INSOMNIA_IMAGE=1), OpenAI (OPENAI_API_KEY)
+# 3. Optional: GHCR pull secret (GHCR_TOKEN + GHCR_USERNAME), build/load local image (PROVISION_LOAD_INSOMNIA_IMAGE=1),
+#    OpenAI: OPENAI_API_KEY env, or PROVISION_OPENAI_STDIN=1 to read key from stdin (hidden on TTY; pipe one line)
+# 4. Optional: sync Phoenix PHOENIX_ADMIN_SECRET → insomnia secret insomnia-phoenix (PHOENIX_API_KEY) when Phoenix is deployed
+# 5. Optional: Jira MCP — JIRA_BASE_URL + JIRA_USERNAME + JIRA_API_TOKEN → secret insomnia-jira (see scripts/create-jira-secret.sh)
+#    Optional ITSM: INSOMNIA_JIRA_ITSM_NOTIFY_ENABLED + JIRA_ITSM_PROJECT_KEY (see tools/jira_itsm.py; Helm jira.itsmNotify)
 #
 # GitOps: push commits to origin before expecting Flux to reconcile app manifests.
 
@@ -143,10 +147,30 @@ build_load_insomnia_image() {
   log_warn "Flux HelmRelease may need a reconcile or rollout restart after image load."
 }
 
-# --- OpenAI secrets (optional) — same namespaces as Insomnia / AgentGateway ---
+# --- Namespaces required before secrets (Flux may not have reconciled insomnia-infra yet) ---
+ensure_openai_secret_namespaces() {
+  kubectl create namespace insomnia --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+  kubectl create namespace agentgateway-system --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+}
+
+# --- OpenAI secrets (optional) — insomnia-openai + agentgateway-system/openai-secret ---
+# With PROVISION_OPENAI_STDIN=1, reads the API key from stdin (OPENAI_KEY) and sets OPENAI_API_KEY for secrets.
 create_openai_secrets_if_env_set() {
+  ensure_openai_secret_namespaces
+  if [[ -z "${OPENAI_API_KEY:-}" ]] && [[ "${PROVISION_OPENAI_STDIN:-}" == "1" ]]; then
+    if [[ -t 0 ]]; then
+      log_info "Enter OpenAI API key (hidden; stored as OPENAI_API_KEY and OPENAI_KEY in insomnia-openai):"
+      read -rs OPENAI_KEY
+      echo
+    else
+      IFS= read -r OPENAI_KEY
+    fi
+    export OPENAI_API_KEY="$OPENAI_KEY"
+    unset OPENAI_KEY
+  fi
+
   if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-    log_warn "OPENAI_API_KEY not set. Skipping secrets; create insomnia-openai and agentgateway-system/openai-secret manually if needed."
+    log_warn "OPENAI_API_KEY not set and PROVISION_OPENAI_STDIN not used. Skipping secrets; create insomnia-openai and agentgateway-system/openai-secret manually if needed."
     return 0
   fi
   export OPENAI_API_KEY
@@ -156,6 +180,7 @@ create_openai_secrets_if_env_set() {
   else
     kubectl create secret generic insomnia-openai \
       --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+      --from-literal=OPENAI_KEY="$OPENAI_API_KEY" \
       -n insomnia --dry-run=client -o yaml | kubectl apply -f -
     if [[ -n "${OPENAI_MODEL:-}" ]]; then
       kubectl patch secret insomnia-openai -n insomnia -p "{\"stringData\":{\"OPENAI_MODEL\":\"$OPENAI_MODEL\"}}"
@@ -168,6 +193,41 @@ create_openai_secrets_if_env_set() {
 
   if kubectl get deployment insomnia -n insomnia &>/dev/null; then
     kubectl rollout restart deployment/insomnia -n insomnia
+  fi
+}
+
+# --- Phoenix: copy admin token for OTLP (optional; Phoenix Helm uses auth.enableAuth=false by default so traces need no key) ---
+sync_phoenix_api_key_to_insomnia() {
+  if [[ ! -f "$REPO_ROOT/scripts/sync-phoenix-api-key.sh" ]]; then
+    return 0
+  fi
+  if bash "$REPO_ROOT/scripts/sync-phoenix-api-key.sh"; then
+    if kubectl get deployment insomnia -n insomnia &>/dev/null; then
+      kubectl rollout restart deployment/insomnia -n insomnia 2>/dev/null || true
+    fi
+  fi
+}
+
+# --- Jira MCP secret (optional) — insomnia-jira: JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN ---
+create_jira_mcp_secret_if_env_set() {
+  kubectl create namespace insomnia --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+  if [[ -z "${JIRA_BASE_URL:-}" || -z "${JIRA_USERNAME:-}" || -z "${JIRA_API_TOKEN:-}" ]]; then
+    log_warn "Jira MCP secret skipped (set JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN to create insomnia-jira). Or run: ./scripts/create-jira-secret.sh"
+    return 0
+  fi
+  if [[ -x "$REPO_ROOT/scripts/create-jira-secret.sh" ]]; then
+    "$REPO_ROOT/scripts/create-jira-secret.sh"
+  else
+    kubectl create secret generic insomnia-jira \
+      --from-literal=JIRA_BASE_URL="$JIRA_BASE_URL" \
+      --from-literal=JIRA_USERNAME="$JIRA_USERNAME" \
+      --from-literal=JIRA_API_TOKEN="$JIRA_API_TOKEN" \
+      -n insomnia --dry-run=client -o yaml | kubectl apply -f -
+    log_info "Applied secret insomnia-jira in namespace insomnia."
+  fi
+  log_info "Jira MCP: enable the integration in Helm (jira.enabled: true on the insomnia chart) so the deployment mounts these env vars."
+  if kubectl get deployment insomnia -n insomnia &>/dev/null; then
+    kubectl rollout restart deployment/insomnia -n insomnia 2>/dev/null || true
   fi
 }
 
@@ -187,7 +247,9 @@ main() {
     log_warn "Skipping Docker build/kind load. For local insomnia:latest on Kind, set PROVISION_LOAD_INSOMNIA_IMAGE=1 and re-run."
   fi
 
-  run_step "Optional OpenAI secrets (OPENAI_API_KEY)" create_openai_secrets_if_env_set
+  run_step "Optional OpenAI secrets (OPENAI_API_KEY or PROVISION_OPENAI_STDIN=1)" create_openai_secrets_if_env_set
+  run_step "Optional Jira MCP secret (JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN)" create_jira_mcp_secret_if_env_set
+  run_step "Optional Phoenix API key secret (insomnia-phoenix)" sync_phoenix_api_key_to_insomnia
 
   total_end=$(date +%s)
   total_elapsed=$(( total_end - total_start ))
