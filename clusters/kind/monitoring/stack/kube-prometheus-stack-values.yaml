@@ -1,4 +1,4 @@
-# kube-prometheus-stack overrides for Insomnia infracore.
+# kube-prometheus-stack overrides for Insomnia (via Flux HelmRelease).
 # Scrape metrics every 10 seconds for faster alerting/dashboards.
 prometheus:
   prometheusSpec:

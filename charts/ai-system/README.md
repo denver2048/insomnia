@@ -1,13 +1,13 @@
 # ai-system Helm Chart
 
-Deploys **AgentGateway**, **Kagent**, and **LLM backend configuration** (OpenAI) in Kubernetes using the Gateway API. All components run in a clean namespace (`ai-system` by default), with AgentGateway in `agentgateway-system`. **Kagent uses only its built-in agents** (e.g. helm-agent, observability-agent); it does not use Insomnia or other repo apps as agents.
+Deploys **AgentGateway**, **Kagent**, and **LLM backend configuration** (OpenAI) in Kubernetes using the Gateway API. Chart resources run in **`insomnia` by default** (same namespace as the Insomnia app and Kagent), with AgentGateway control plane in `agentgateway-system`. Built-in Kagent agents are disabled in Flux. The **Insomnia `Agent` CR** is **not** in this chart: it lives under **`clusters/kind/releases/agent/`** and is applied by Flux **`insomnia-kagent-agent`** (nested `spec.type` / `spec.declarative` would break Helm strict SSA and a flat spec crashes the kagent controller).
 
 ## Architecture
 
 - **Gateway API**: Standard + optional experimental CRDs.
 - **AgentGateway**: Control plane in `agentgateway-system`; Gateway resource creates the proxy (Deployment + Service). AgentgatewayBackend + HTTPRoute route traffic to the LLM.
 - **LLM Backend**: OpenAI via AgentgatewayBackend (default model: gpt-5.2); API key from a Kubernetes Secret.
-- **Kagent**: Installed in `ai-system` with **all built-in agents disabled**. The provision script sets `agents.*.enabled=false`. **Insomnia** is the agent that uses the gateway: the root `provision.sh` sets Insomnia's `openai.baseUrl` to the gateway so LLM traffic flows Insomnia → Gateway → OpenAI.
+- **Kagent**: Installed in `insomnia` with **built-in agents disabled** (Flux Helm values). **Insomnia** uses the gateway for LLM (`openai.baseUrl` on the Insomnia chart). The **`Agent` `insomnia`** is applied by Flux from **`clusters/kind/releases/agent/`**.
 
 ## Prerequisites
 
@@ -60,14 +60,14 @@ kubectl create secret generic openai-secret -n agentgateway-system --from-litera
 ### 4. ai-system chart (Gateway, Backend, HTTPRoute, ConfigMaps)
 
 ```bash
-helm upgrade -i ai-system ./charts/ai-system -n ai-system --create-namespace
+helm upgrade -i ai-system ./charts/ai-system -n insomnia --create-namespace
 ```
 
 ### 5. Kagent (optional, for built-in agents)
 
 ```bash
-helm upgrade -i kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds -n ai-system --create-namespace
-helm upgrade -i kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent -n ai-system \
+helm upgrade -i kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds -n insomnia --create-namespace
+helm upgrade -i kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent -n insomnia \
   --set providers.default=openAI \
   --set "providers.openAI.apiKey=$OPENAI_API_KEY"
 ```
@@ -76,7 +76,7 @@ helm upgrade -i kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent -n ai-system 
 
 | Value | Description |
 |-------|-------------|
-| `namespace` | Namespace for ai-system resources (default: `ai-system`) |
+| `namespace` | Namespace for ai-system resources (default: `insomnia`) |
 | `agentgateway.systemNamespace` | AgentGateway control plane namespace (default: `agentgateway-system`) |
 | `agentgateway.logging.level` | Proxy log level: `debug`, `info`, `warn`, `error` (default: `debug` for kgateway visibility) |
 | `agentgateway.logging.format` | Proxy log format: `json` or `text` (default: `json`) |

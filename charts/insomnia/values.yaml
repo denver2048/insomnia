@@ -1,9 +1,15 @@
 replicaCount: 1
 
+# CI pushes to ghcr.io/<github-owner>/<repo> (see .github/workflows/insomnia-image.yml).
 image:
-  repository: insomnia
+  repository: ghcr.io/denver2048/insomnia
   tag: latest
-  pullPolicy: IfNotPresent
+  # With tag "latest", Always avoids a stale node cache; pin a semver tag if you prefer IfNotPresent.
+  pullPolicy: Always
+
+# For private GHCR packages: create docker-registry secret ghcr-credentials (see repo provision.sh).
+# Set to [] if the package is public and you do not use a pull secret.
+imagePullSecrets: []
 
 service:
   port: 8000

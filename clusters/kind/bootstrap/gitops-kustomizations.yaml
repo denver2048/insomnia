@@ -1,0 +1,76 @@
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: insomnia-infra
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/kind/infrastructure
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: insomnia
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: insomnia-monitoring-stack
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/kind/monitoring/stack
+  prune: true
+  timeout: 25m
+  sourceRef:
+    kind: GitRepository
+    name: insomnia
+  dependsOn:
+    - name: insomnia-infra
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: insomnia-monitoring-config
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/kind/monitoring/config
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: insomnia
+  dependsOn:
+    - name: insomnia-monitoring-stack
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: insomnia-releases
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/kind/releases
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: insomnia
+  dependsOn:
+    - name: insomnia-infra
+    - name: insomnia-monitoring-config
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: insomnia-kagent-agent
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: clusters/kind/releases/agent
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: insomnia
+    namespace: flux-system
+  dependsOn:
+    - name: insomnia-releases

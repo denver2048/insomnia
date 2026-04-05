@@ -1,0 +1,46 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: agentgateway-crds
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://cr.agentgateway.dev/charts/agentgateway-crds
+  ref:
+    tag: v1.0.0-rc.1
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: agentgateway-chart
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://cr.agentgateway.dev/charts/agentgateway
+  ref:
+    tag: v1.0.0-rc.1
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kagent-crds
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds
+  # Pin exact tag (not semver range): 0.8.x can resolve to 0.8.1+build which contains '+',
+  # invalid in Kubernetes label values used by the kagent chart.
+  ref:
+    tag: "0.8.1"
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kagent-chart
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://ghcr.io/kagent-dev/kagent/helm/kagent
+  ref:
+    tag: "0.8.1"

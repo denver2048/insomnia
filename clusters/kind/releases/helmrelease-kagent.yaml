@@ -1,0 +1,78 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kagent-crds
+  namespace: flux-system
+spec:
+  interval: 24h
+  releaseName: kagent-crds
+  targetNamespace: insomnia
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chartRef:
+    kind: OCIRepository
+    name: kagent-crds
+    namespace: flux-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kagent
+  namespace: flux-system
+spec:
+  interval: 24h
+  releaseName: kagent
+  targetNamespace: insomnia
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  dependsOn:
+    - name: ai-system
+      namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: kagent-chart
+    namespace: flux-system
+  # Chart.Version from OCI can include '+…' build metadata; K8s label values cannot contain '+'.
+  # Keep this value aligned with clusters/kind/releases/oci-repositories.yaml kagent-chart ref.tag.
+  commonMetadata:
+    labels:
+      app.kubernetes.io/version: "0.8.1"
+  values:
+    # Default image tag coalesces to .Chart.Version; OCI can supply semver with '+…' which is not a valid image tag.
+    # Do not set global.tag: kagent-tools is its own subchart (image tag 0.1.x); forcing 0.8.1 breaks ghcr.io/.../tools:0.8.1 (not published).
+    tag: "0.8.1"
+    providers:
+      default: openAI
+      openAI:
+        apiKey: placeholder-replace-with-secret
+    agents:
+      argo-rollouts-agent:
+        enabled: false
+      cilium-debug-agent:
+        enabled: false
+      cilium-manager-agent:
+        enabled: false
+      cilium-policy-agent:
+        enabled: false
+      helm-agent:
+        enabled: false
+      istio-agent:
+        enabled: false
+      k8s-agent:
+        enabled: false
+      kgateway-agent:
+        enabled: false
+      observability-agent:
+        enabled: false
+      promql-agent:
+        enabled: false

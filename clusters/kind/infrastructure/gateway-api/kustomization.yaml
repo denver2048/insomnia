@@ -1,0 +1,5 @@
+# Gateway API standard CRDs (v1.5.0) — vendored from upstream standard-install.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - standard-install.yaml
