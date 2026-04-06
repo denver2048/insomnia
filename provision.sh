@@ -225,7 +225,7 @@ create_jira_mcp_secret_if_env_set() {
       -n insomnia --dry-run=client -o yaml | kubectl apply -f -
     log_info "Applied secret insomnia-jira in namespace insomnia."
   fi
-  log_info "Jira MCP: enable the integration in Helm (jira.enabled: true on the insomnia chart) so the deployment mounts these env vars."
+  log_info "Jira: set Helm values jira.enabled and/or jira.itsmNotify (see clusters/kind/releases/helmrelease-apps.yaml). For ITSM issue creation, set jira.itsmProjectKey to your Jira project key."
   if kubectl get deployment insomnia -n insomnia &>/dev/null; then
     kubectl rollout restart deployment/insomnia -n insomnia 2>/dev/null || true
   fi

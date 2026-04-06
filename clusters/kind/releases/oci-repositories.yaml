@@ -55,3 +55,15 @@ spec:
   url: oci://registry-1.docker.io/arizephoenix/phoenix-helm
   ref:
     tag: "5.0.23"
+---
+# MCP Governance — https://github.com/techwithhuz/mcp-security-governance
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: mcp-governance-chart
+  namespace: flux-system
+spec:
+  interval: 24h
+  url: oci://ghcr.io/techwithhuz/charts/mcp-governance
+  ref:
+    tag: "0.22.1"

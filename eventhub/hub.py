@@ -77,6 +77,9 @@ async def process_webhook(
                 result.pod or "?",
                 result.reason,
             )
+            logger.info(
+                "ITSM: will not run — alert did not pass guardrails (investigation not started)."
+            )
             continue
 
         triage_result: Optional[TriageResult] = None
@@ -96,6 +99,9 @@ async def process_webhook(
                     triage_result.namespace or "?",
                     triage_result.pod or "?",
                 )
+                logger.info(
+                    "ITSM: will not run — triage set should_investigate=false (set INSOMNIA_USE_TRIAGE=false to run all investigations)."
+                )
                 continue
         else:
             triage_results.append(None)
@@ -105,6 +111,9 @@ async def process_webhook(
         ns = labels.get("namespace", "?")
         pod = labels.get("pod", "?")
         logger.info("Event hub: guardrails passed → forwarding to investigation namespace=%s pod=%s", ns, pod)
+        logger.info(
+            "ITSM: will run after investigation completes if Helm jira.itsmNotify is enabled and secrets are set."
+        )
         await on_approved(alert)
 
     return (rejected, approved, triage_results)

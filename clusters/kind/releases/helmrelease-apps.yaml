@@ -33,6 +33,9 @@ spec:
       installExperimental: false
     kagent:
       namespace: insomnia
+    # Jira MCP: RemoteMCPServer jira-mcp + Deployment (requires secret insomnia-jira — see scripts/create-jira-secret.sh)
+    jiraMcp:
+      enabled: true
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -81,3 +84,10 @@ spec:
       # When you enable Phoenix auth, set apiKeyExistingSecret: insomnia-phoenix and sync the key.
       otelServiceName: insomnia
       otlpProtocol: grpc
+    # Triage off: triage can set should_investigate=false and skip the whole pipeline (no Jira ITSM).
+    triageEnabled: false
+    # Jira ITSM: post investigation to Jira (default project key KAN is in charts/insomnia/values.yaml jira.itsmProjectKey).
+    # Requires secret insomnia-jira (scripts/create-jira-secret.sh).
+    jira:
+      enabled: true
+      itsmNotify: true

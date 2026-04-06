@@ -4,5 +4,6 @@ resources:
   - oci-repositories.yaml
   - helmrelease-agentgateway.yaml
   - helmrelease-kagent.yaml
+  - helmrelease-mcp-governance.yaml
   - helmrelease-apps.yaml
   - helmrelease-phoenix.yaml

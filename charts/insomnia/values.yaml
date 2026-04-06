@@ -17,6 +17,10 @@ imagePullSecrets: []
 service:
   port: 8000
 
+# Triage (INSOMNIA_USE_TRIAGE): when true, OpenAI may set should_investigate=false — no investigation and no Jira ITSM.
+# Set false to run full investigation (and ITSM when Jira is enabled) for every alert that passes guardrails.
+triageEnabled: true
+
 logProvider: kubernetes
 
 loki:
@@ -54,13 +58,15 @@ phoenix:
   otlpProtocol: grpc
 
 # Optional: Jira MCP (stdio via npx) + REST ITSM notifications. Secret: JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN.
+# Mount Jira env when jira.enabled OR jira.itsmNotify (ITSM-only without MCP: enabled=false, itsmNotify=true).
 jira:
   enabled: false
   existingSecret: insomnia-jira
-  # When false, MCP fetch step is skipped but REST ITSM can still run if itsmNotify is true.
+  # When false, MCP fetch step is skipped; REST ITSM still runs if itsmNotify is true (requires secret + env block).
   mcpEnabled: true
   # Post investigation report to Jira (comment on linked issue, or new issue in itsmProjectKey).
   itsmNotify: false
-  # Required for creating issues when the alert has no jira_issue / jira_key / issue_key label or annotation.
-  itsmProjectKey: ""
+  # Jira project key for new issues when the alert has no jira_issue / jira_key / issue_key label or annotation.
+  # If empty, ITSM only comments on alerts that reference an existing issue. Override: helm --set jira.itsmProjectKey=OTHER
+  itsmProjectKey: "KAN"
   itsmIssueType: Task

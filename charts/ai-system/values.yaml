@@ -65,3 +65,26 @@ configMaps:
   gateway: {}
   backend: {}
   modelRouting: {}
+
+# --- Jira MCP for kagent (RemoteMCPServer) ---
+# Deploys guang1/jira-mcp (Streamable HTTP on /mcp) and registers kagent.dev/v1alpha2 RemoteMCPServer "jira-mcp".
+# Create the secret first: scripts/create-jira-secret.sh (insomnia-jira: JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN).
+jiraMcp:
+  enabled: false
+  secretName: insomnia-jira
+  image:
+    repository: guang1/jira-mcp
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  remote:
+    timeout: 60s
+    sseReadTimeout: 5m0s

@@ -18,5 +18,11 @@ Next steps:
      curl -s localhost:8080/v1/chat/completions -H content-type:application/json -d '{"model":"","messages":[{"role":"user","content":"Hi"}]}' | jq
 
   5. Insomnia is the agent (OPENAI_BASE_URL set by root provision.sh). Trigger alerts to run analysis via the gateway (see repo demo-cases/).
+{{- if .Values.jiraMcp.enabled }}
+
+  6. Jira MCP (kagent): RemoteMCPServer `jira-mcp` is installed in {{ .Values.namespace }}.
+     Create secret {{ .Values.jiraMcp.secretName }} (JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN) first — scripts/create-jira-secret.sh
+     Reference it from an Agent spec: kind RemoteMCPServer, name jira-mcp, namespace {{ .Values.namespace }}.
+{{- end }}
 
 Documentation: see charts/ai-system/README.md and scripts/provision-ai-system.sh

@@ -38,6 +38,17 @@ spec:
         - name: PROMETHEUS_URL
           value: {{ .Values.prometheus.url }}
 
+        {{- $triage := true -}}
+        {{- if hasKey .Values "triageEnabled" -}}
+        {{- $triage = .Values.triageEnabled -}}
+        {{- end }}
+        - name: INSOMNIA_USE_TRIAGE
+{{- if $triage }}
+          value: "true"
+{{- else }}
+          value: "false"
+{{- end }}
+
         {{- if .Values.openai.baseUrl }}
         - name: OPENAI_BASE_URL
           value: {{ .Values.openai.baseUrl | quote }}
@@ -72,13 +83,19 @@ spec:
               optional: true
         {{- end }}
 
+        {{- if or .Values.jira.enabled .Values.jira.itsmNotify }}
         {{- if .Values.jira.enabled }}
         {{- $jiraMcp := true -}}
         {{- if hasKey .Values.jira "mcpEnabled" -}}
         {{- $jiraMcp = .Values.jira.mcpEnabled -}}
         {{- end }}
         - name: JIRA_MCP_ENABLED
-          value: {{ if $jiraMcp }}"true"{{ else }}"false"{{ end }}
+{{- if $jiraMcp }}
+          value: "true"
+{{- else }}
+          value: "false"
+{{- end }}
+        {{- end }}
         - name: JIRA_BASE_URL
           valueFrom:
             secretKeyRef:
@@ -97,13 +114,11 @@ spec:
         {{- if .Values.jira.itsmNotify }}
         - name: INSOMNIA_JIRA_ITSM_NOTIFY_ENABLED
           value: "true"
-        {{- end }}
-        {{- if .Values.jira.itsmProjectKey }}
         - name: JIRA_ITSM_PROJECT_KEY
-          value: {{ .Values.jira.itsmProjectKey | quote }}
-        {{- end }}
+          value: {{ .Values.jira.itsmProjectKey | default "KAN" | quote }}
         - name: JIRA_ITSM_ISSUE_TYPE
           value: {{ .Values.jira.itsmIssueType | default "Task" | quote }}
+        {{- end }}
         {{- end }}
 
         envFrom:

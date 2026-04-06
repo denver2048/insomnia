@@ -1,0 +1,45 @@
+---
+# Kubernetes-native MCP security governance: discovers AgentGateway / Kagent / Gateway API
+# resources, scores posture, and serves a dashboard. Chart source: oci://ghcr.io/techwithhuz/charts/mcp-governance
+# Docs: https://github.com/techwithhuz/mcp-security-governance
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mcp-governance
+  namespace: flux-system
+spec:
+  interval: 24h
+  releaseName: mcp-governance
+  targetNamespace: mcp-governance
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  dependsOn:
+    - name: agentgateway
+      namespace: flux-system
+    - name: kagent
+      namespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: mcp-governance-chart
+    namespace: flux-system
+  values:
+    createNamespace: false
+    controller:
+      image:
+        pullPolicy: Always
+    dashboard:
+      enabled: true
+      image:
+        pullPolicy: Always
+      service:
+        type: NodePort
+        nodePort: 30000
+    crds:
+      installExternal: false
+    samples:
+      install: true

@@ -1,0 +1,88 @@
+{{- if .Values.jiraMcp.enabled }}
+# Streamable HTTP Jira MCP (guang1/jira-mcp) + kagent RemoteMCPServer registration.
+# Requires secret {{ .Values.jiraMcp.secretName }} with JIRA_BASE_URL, JIRA_USERNAME, JIRA_API_TOKEN
+# (same as charts/insomnia and scripts/create-jira-secret.sh).
+# Quarkus maps env ATLASIAN_URL / ATLASIAN_USERNAME / ATLASIAN_PAT to atlassian.url / atlassian.username / atlassian.pat.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jira-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: jira-mcp
+    app.kubernetes.io/component: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jira-mcp
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jira-mcp
+    spec:
+      containers:
+        - name: jira-mcp
+          image: {{ .Values.jiraMcp.image.repository }}:{{ .Values.jiraMcp.image.tag }}
+          imagePullPolicy: {{ .Values.jiraMcp.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.jiraMcp.service.port }}
+          env:
+            - name: ATLASIAN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jiraMcp.secretName }}
+                  key: JIRA_BASE_URL
+            - name: ATLASIAN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jiraMcp.secretName }}
+                  key: JIRA_USERNAME
+            - name: ATLASIAN_PAT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jiraMcp.secretName }}
+                  key: JIRA_API_TOKEN
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.jiraMcp.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jira-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: jira-mcp
+spec:
+  selector:
+    app.kubernetes.io/name: jira-mcp
+  ports:
+    - name: http
+      port: {{ .Values.jiraMcp.service.port }}
+      targetPort: http
+---
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: jira-mcp
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: jira-mcp
+spec:
+  description: Jira Cloud MCP (Streamable HTTP; guang1/jira-mcp)
+  url: {{ printf "http://jira-mcp.%s.svc.cluster.local:%d/mcp" .Values.namespace (int .Values.jiraMcp.service.port) | quote }}
+  protocol: STREAMABLE_HTTP
+  timeout: {{ .Values.jiraMcp.remote.timeout }}
+  sseReadTimeout: {{ .Values.jiraMcp.remote.sseReadTimeout }}
+{{- end }}
